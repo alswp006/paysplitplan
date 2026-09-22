@@ -25,6 +25,14 @@ export const LIMITS = {
   maxSalary: 999_999_999,
   maxBudgetItems: 100,
   maxMonthlyRecords: 1000,
+  salaryMin: 100_000,
+  salaryMax: 100_000_000,
+  paydayMin: 1,
+  paydayMax: 31,
+  maxFixedCostItems: 20,
+  fixedCostAmountMin: 1,
+  fixedCostAmountMax: 100_000_000,
+  fixedCostNameMaxLength: 20,
 } as const;
 
 export const MSG = {

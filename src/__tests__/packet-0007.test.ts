@@ -1,8 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { PlanDraft, SetupErrors } from "@/lib/types";
 
-// These functions don't exist yet — tests will fail until implementation is added
-// @ts-expect-error - importing non-existent functions for TDD
 import { validateSetup, validateFixedCost } from "@/lib/validation";
 
 describe("Packet 0007: Setup 입력 검증", () => {
