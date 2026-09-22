@@ -1,0 +1,639 @@
+[
+  {
+    "id": "0001",
+    "title": "엔티티 타입과 RouteState 계약 정의",
+    "epic": "Epic 1: Data/Storage",
+    "task": {
+      "description": "src/lib/types.ts에 런타임 코드 없이 타입만 정의한다. 대상은 BucketKey, PresetId, FixedCost, Plan, PlanDraft, MonthRecord, MonthRecordMap, Allocation, IncomeScenario{salary,remaining,saving,yearlySaving}, SaveResult, SetupErrors{salary?,payday?,fixedTotal?}이다. 페이지 간 navigate state 계약인 RouteState도 여기서 고정한다('/ratio'는 {draft}|undefined, '/result'는 {justSaved}|undefined).",
+      "acceptance_criteria": [
+        "tsc --noEmit가 통과한다",
+        "src/lib/types.ts 안에 'export const', 'function', 'class' 문자열이 0건이다",
+        "RouteState['/ratio']에 undefined를 대입하는 코드와 RouteState['/result']에 undefined를 대입하는 코드가 모두 타입 오류 없이 컴파일된다"
+      ]
+    },
+    "covers": [
+      "F1-AC4",
+      "F1-AC7",
+      "F3-AC6",
+      "F4-AC4"
+    ],
+    "files": [
+      "src/lib/types.ts"
+    ],
+    "definition_of_done": [
+      "타입과 interface만 export한다",
+      "SaveResult = { ok: true } | { ok: false; reason: 'quota' | 'unknown' }",
+      "Plan.version의 타입은 리터럴 1이다"
+    ],
+    "depends_on": [],
+    "db_schema": "interface Plan { version:1; salary:number; fixedCosts:FixedCost[]; payday:number; presetId:PresetId; ratios:Record<BucketKey,number>; createdAt:string; updatedAt:string } → localStorage key 'psp.plan.v1'; interface MonthRecord { month:string; checked:BucketKey[]; total:number; rate:number; updatedAt:string }; type MonthRecordMap = Record<string,MonthRecord> → localStorage key 'psp.records.v1'",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": ""
+  },
+  {
+    "id": "0002",
+    "title": "상수와 포맷·입력 헬퍼",
+    "epic": "Epic 1: Data/Storage",
+    "task": {
+      "description": "src/lib/constants.ts에 BUCKET_ORDER, BUCKET_LABEL(생활비/저축/비상금/여가), PRESETS(basic_5311 50/30/10/10, saving_4411 40/40/10/10, living_6211 60/20/10/10, custom '직접 조정'), STORAGE_KEYS, LIMITS, MSG(quota/planLoadFail/saved 문구)를 정의한다. src/lib/format.ts에는 formatWon, formatComma, parseDigits, clampRatio, genId를 만든다. genId는 crypto.randomUUID를 쓰지 않는다. vitest 테스트도 함께 작성한다.",
+      "acceptance_criteria": [
+        "formatWon(2300000) === '2,300,000원'",
+        "parseDigits('-1.5') === 15, parseDigits('') === null, clampRatio(120) === 100",
+        "genId()를 1,000회 호출했을 때 중복이 0건이다"
+      ]
+    },
+    "covers": [
+      "F3-AC5",
+      "F7-AC7"
+    ],
+    "files": [
+      "src/lib/constants.ts",
+      "src/lib/format.ts",
+      "src/lib/__tests__/format.test.ts",
+      "vitest.config.ts",
+      "package.json"
+    ],
+    "definition_of_done": [
+      "src/lib/__tests__/format.test.ts가 통과한다",
+      "MSG.quota === '저장 공간이 부족해 저장하지 못했어요', MSG.planLoadFail === '저장된 계획을 불러오지 못했어요', MSG.saved === '계획을 저장했어요'",
+      "vitest와 @testing-library/react가 없으면 devDependency로 추가한다"
+    ],
+    "depends_on": [
+      "0001"
+    ],
+    "db_schema": "STORAGE_KEYS = { plan: 'psp.plan.v1', records: 'psp.records.v1' }",
+    "api_contract": "",
+    "dependencies": [
+      "vitest",
+      "@testing-library/react",
+      "jsdom"
+    ],
+    "ui_requirements": ""
+  },
+  {
+    "id": "0003",
+    "title": "localStorage 저장소 (예외 없는 SaveResult)",
+    "epic": "Epic 1: Data/Storage",
+    "task": {
+      "description": "src/lib/storage.ts에 loadPlan(): Plan|null, isPlanCorrupted(): boolean, savePlan(plan): SaveResult, loadRecords(): MonthRecordMap, saveRecords(map): SaveResult를 만든다. 이 모듈은 절대 throw하지 않는다. QuotaExceededError(name, 또는 code 22/1014)는 {ok:false, reason:'quota'}로 반환한다. saveRecords는 월 키를 정렬해 최신 36개만 저장한다.",
+      "acceptance_criteria": [
+        "savePlan(p)를 호출한 뒤 JSON.parse(localStorage['psp.plan.v1'])와 loadPlan()이 모두 p와 deepEqual이다",
+        "'psp.plan.v1'이 '{broken'이면 loadPlan()은 throw 없이 null을 반환하고 isPlanCorrupted()는 true다. records가 '[bad'면 loadRecords()는 {}를 반환한다",
+        "setItem이 DOMException('','QuotaExceededError')를 던지면 savePlan은 {ok:false, reason:'quota'}를 반환한다. 37개월 map을 저장하면 36개만 남고 가장 오래된 키는 사라진다"
+      ]
+    },
+    "covers": [
+      "F1-AC4",
+      "F1-AC6",
+      "F1-AC7",
+      "F1-AC8"
+    ],
+    "files": [
+      "src/lib/storage.ts",
+      "src/lib/__tests__/storage.test.ts"
+    ],
+    "definition_of_done": [
+      "src/lib/__tests__/storage.test.ts가 통과한다",
+      "배열이나 필수 필드가 빠진 Plan은 손상으로 판정한다",
+      "모든 public 함수는 try/catch로 감싼다"
+    ],
+    "depends_on": [
+      "0001",
+      "0002"
+    ],
+    "db_schema": "'psp.plan.v1' → JSON(Plan); 'psp.records.v1' → JSON(MonthRecordMap), 최신 36개월만 보관",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": ""
+  },
+  {
+    "id": "0004",
+    "title": "배분·이행률·소득 구간 계산 함수",
+    "epic": "Epic 2: Domain Logic",
+    "task": {
+      "description": "src/lib/calc.ts에 순수 함수를 만든다. calcAllocation은 saving, emergency, leisure를 1,000원 단위로 내림하고 끝전은 living에 넣는다. calcRate는 total이 0이면 0을 반환한다. activeBuckets는 배분액이 0보다 큰 칸을 BUCKET_ORDER 순서로 반환한다. buildIncomeScenarios는 월급 ±50만·±100만원 구간을 만들고, salary<100000이거나 remaining≤0인 구간은 뺀다. sumRatios와 matchPreset도 만든다.",
+      "acceptance_criteria": [
+        "F1-AC1 입력 → {fixedTotal:700000, remaining:2300000, buckets:{living:1150000, saving:690000, emergency:230000, leisure:230000}}",
+        "salary 2345670, 고정비 [] → {saving:703000, emergency:234000, leisure:234000, living:1174670}, 합계 2345670. calcRate(3,4) === 75",
+        "salary 3,000,000·고정비 700,000 → 구간 5개, saving [390000,540000,690000,840000,990000], 첫 구간 yearlySaving 4680000. salary 1,200,000·고정비 600,000 → 구간 salary [700000,1200000,1700000,2200000]. ratios 60/40/0/0 → activeBuckets ['living','saving']"
+      ]
+    },
+    "covers": [
+      "F1-AC1",
+      "F1-AC2",
+      "F1-AC5",
+      "F4-AC2",
+      "F4-AC6",
+      "F5-AC6"
+    ],
+    "files": [
+      "src/lib/calc.ts",
+      "src/lib/__tests__/calc.test.ts"
+    ],
+    "definition_of_done": [
+      "src/lib/__tests__/calc.test.ts가 통과한다",
+      "matchPreset은 일치하는 프리셋이 없으면 'custom'을 반환한다",
+      "부수효과(localStorage, Date)가 없다"
+    ],
+    "depends_on": [
+      "0001",
+      "0002"
+    ],
+    "db_schema": "",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": ""
+  },
+  {
+    "id": "0005",
+    "title": "날짜·D-day 함수 (기기 로컬 시간)",
+    "epic": "Epic 2: Domain Logic",
+    "task": {
+      "description": "src/lib/date.ts에 lastDayOfMonth, getNextPayday, getDday, formatDday, toMonthKey, monthRange, formatMonthLabel을 만든다. 모든 계산은 로컬 자정 new Date(y,m,d) 기준이다. 해당 월에 월급날이 없으면 그 달 말일로 처리한다. getDday는 Math.round(diff/86400000)로 계산한다. Array.prototype.at은 쓰지 않는다.",
+      "acceptance_criteria": [
+        "today=new Date(2026,8,23)일 때 getDday(25)=2, getDday(23)=0, getDday(20)=27, getDday(31)=7",
+        "monthRange('2026-07','2026-09')는 ['2026-07','2026-08','2026-09'], monthRange('2025-12','2026-01')의 길이는 2",
+        "formatDday(0)==='D-DAY', formatDday(5)==='D-5', formatMonthLabel('2026-09')==='2026년 9월'"
+      ]
+    },
+    "covers": [
+      "F1-AC3",
+      "F5-AC1"
+    ],
+    "files": [
+      "src/lib/date.ts",
+      "src/lib/__tests__/date.test.ts"
+    ],
+    "definition_of_done": [
+      "src/lib/__tests__/date.test.ts가 통과한다",
+      "toISOString 기반의 UTC 계산을 쓰지 않는다",
+      "소스에 '.at(' 호출이 0건이다"
+    ],
+    "depends_on": [
+      "0001"
+    ],
+    "db_schema": "",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": ""
+  },
+  {
+    "id": "0006",
+    "title": "월 기록 로직 (빈 달 채우기·체크 토글·최근 N개월)",
+    "epic": "Epic 2: Domain Logic",
+    "task": {
+      "description": "src/lib/records.ts에 저장하지 않는 순수 함수를 만든다. ensureMonthRecords(plan, today, existing)은 {map, changed}를 반환한다. createdAt 달부터 이번 달까지 비어 있는 달을 {checked:[], total:활성칸수, rate:0}으로 채운다. 이번 달은 total을 다시 계산하고, 0원이 된 칸의 체크를 지우고, rate를 다시 계산한다. 과거 달은 그대로 둔다. toggleCheck(map, monthKey, bucket)은 새 map을 반환하고, recentMonths(map, today, 6)도 만든다.",
+      "acceptance_criteria": [
+        "plan.createdAt='2026-07-10T00:00:00.000Z', today=2026-09-23, 기록 없음 → 2026-07, 2026-08, 2026-09가 {checked:[], total:4, rate:0}으로 생성되고 changed=true",
+        "이번 달 checked가 ['living','saving','leisure']이고 plan의 leisure 비율이 0이면 → checked는 ['living','saving'], total 3, rate 67이고, 과거 달 레코드는 원래 객체와 deepEqual",
+        "toggleCheck(map,'2026-09','saving')을 두 번 호출하면 원래 checked로 돌아오고, 입력 map 객체는 변경되지 않는다"
+      ]
+    },
+    "covers": [
+      "F1-AC5",
+      "F5-AC3",
+      "F6-AC1"
+    ],
+    "files": [
+      "src/lib/records.ts",
+      "src/lib/__tests__/records.test.ts"
+    ],
+    "definition_of_done": [
+      "src/lib/__tests__/records.test.ts가 통과한다",
+      "vi.useFakeTimers({ now: new Date(2026, 8, 23) })로 날짜를 고정한다",
+      "localStorage에 접근하지 않는다"
+    ],
+    "depends_on": [
+      "0004",
+      "0005"
+    ],
+    "db_schema": "MonthRecord { month:'YYYY-MM'; checked:BucketKey[]; total:1~4; rate:0~100; updatedAt:ISO }",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": ""
+  },
+  {
+    "id": "0007",
+    "title": "setup 입력 검증 함수",
+    "epic": "Epic 2: Domain Logic",
+    "task": {
+      "description": "src/lib/validation.ts에 순수 함수 validateSetup(draft: PlanDraft): SetupErrors와 validateFixedCost(name, amount)를 만든다. 월급은 100,000~100,000,000 정수, 월급날은 1~31, 고정비는 최대 20개이고 금액은 1~100,000,000, 이름은 앞뒤 공백을 뺀 뒤 1~20자여야 한다. salary - Σfixed > 0이 아니면 fixedTotal 에러를 반환한다. 에러 문구는 해요체로 쓰고 constants의 LIMITS를 사용한다.",
+      "acceptance_criteria": [
+        "salary 99999 → errors.salary가 비어 있지 않은 문자열이다. salary 3000000·payday 25·고정비 700000 → 반환 객체의 키가 0개다",
+        "payday 0과 32 → errors.payday가 존재한다. salary 1000000·고정비 합계 1000000 → errors.fixedTotal이 존재한다",
+        "validateFixedCost('  ', 1000)은 name 에러, validateFixedCost('월세', 0)은 amount 에러, 이름 21자는 name 에러를 반환한다"
+      ]
+    },
+    "covers": [
+      "F2-AC3",
+      "F2-AC4"
+    ],
+    "files": [
+      "src/lib/validation.ts",
+      "src/lib/__tests__/validation.test.ts"
+    ],
+    "definition_of_done": [
+      "src/lib/__tests__/validation.test.ts가 통과한다",
+      "에러 문구에 '~시' 존댓말을 쓰지 않는다",
+      "UI와 localStorage에 의존하지 않는다"
+    ],
+    "depends_on": [
+      "0001",
+      "0002"
+    ],
+    "db_schema": "",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": ""
+  },
+  {
+    "id": "0008",
+    "title": "PlanStore Context (상태 관리 훅)",
+    "epic": "Epic 2: Domain Logic",
+    "task": {
+      "description": "src/hooks/usePlanStore.tsx에 PlanStoreProvider와 usePlanStore를 만든다. 마운트할 때 loadPlan, isPlanCorrupted, loadRecords를 읽고 ensureMonthRecords 결과가 changed면 저장한다. 노출하는 값과 함수는 plan, corrupted, allocation, records, currentRecord, savePlan(plan)→SaveResult, toggleBucket(k)→SaveResult이다. 저장에 실패하면 이전 상태로 롤백한다. App.tsx 배선은 0017이 맡는다.",
+      "acceptance_criteria": [
+        "Provider 안에서 savePlan(p)를 호출하면 plan이 갱신되고 localStorage['psp.plan.v1']에 p가 저장되며, 반환값은 {ok:true}다",
+        "toggleBucket('saving')을 호출하면 currentRecord.checked에 'saving'이 추가되고 rate가 다시 계산되어 'psp.records.v1'에 저장된다",
+        "setItem이 QuotaExceededError를 던지면 toggleBucket은 {ok:false, reason:'quota'}를 반환하고, currentRecord.checked는 호출 전 값과 같다"
+      ]
+    },
+    "covers": [
+      "F1-AC7",
+      "F5-AC3",
+      "F5-AC5"
+    ],
+    "files": [
+      "src/hooks/usePlanStore.tsx",
+      "src/hooks/__tests__/usePlanStore.test.tsx"
+    ],
+    "definition_of_done": [
+      "src/hooks/__tests__/usePlanStore.test.tsx가 통과한다",
+      "Provider 밖에서 usePlanStore를 호출하면 명확한 Error를 던진다",
+      "allocation은 plan이 null이면 null이다"
+    ],
+    "depends_on": [
+      "0003",
+      "0004",
+      "0006"
+    ],
+    "db_schema": "'psp.plan.v1'(Plan), 'psp.records.v1'(MonthRecordMap)",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": ""
+  },
+  {
+    "id": "0009",
+    "title": "고정비 추가 BottomSheet 컴포넌트",
+    "epic": "Epic 3: UI Pages",
+    "task": {
+      "description": "src/components/FixedCostSheet.tsx를 만든다. props는 open, onClose, onAdd(fc: FixedCost)다. TDS BottomSheet 안에 TextField 이름과 금액(inputMode numeric, 콤마 포맷), Button '추가'를 둔다. validateFixedCost로 검증해 hasError와 에러 문구를 표시한다. 금액 필드에서 엔터를 누르면 추가를 실행한다. id는 genId()로 만들고, 추가에 성공하면 입력을 초기화하고 시트를 닫는다.",
+      "acceptance_criteria": [
+        "이름 '월세', 금액 '500,000' 입력 후 '추가'를 탭하면 onAdd가 {name:'월세', amount:500000, id:문자열}로 1회 호출된다",
+        "이름을 비우고 '추가'를 탭하면 onAdd는 호출되지 않고 이름 TextField의 hasError가 true다",
+        "금액 필드에서 Enter 키를 누르면 '추가' 탭과 같은 결과가 나온다"
+      ]
+    },
+    "covers": [
+      "F2-AC5"
+    ],
+    "files": [
+      "src/components/FixedCostSheet.tsx"
+    ],
+    "definition_of_done": [
+      "TDS BottomSheet, TextField, Button만 사용한다",
+      "인라인 여백 스타일이 없고 간격은 Spacing size로만 준다",
+      "tsc --noEmit가 통과한다"
+    ],
+    "depends_on": [
+      "0002",
+      "0007"
+    ],
+    "db_schema": "",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": "<BottomSheet open={sheetOpen} onClose={onClose}>\n  <TextField variant=\"box\" label=\"항목 이름\" help={nameErr} hasError={!!nameErr} />\n  <Spacing size={12} />\n  <TextField variant=\"box\" label=\"금액\" inputMode=\"numeric\" value={amountComma} help={amountErr} hasError={!!amountErr} onKeyDown={Enter→추가} />\n  <Spacing size={16} />\n  <Button variant=\"fill\" size=\"large\" display=\"block\">추가</Button>\n</BottomSheet>\n'추가'를 누르면 generateHapticFeedback({type:'success'})를 준다. 터치 영역은 44px 이상이다. 포커스되면 scrollIntoView({block:'center'})를 호출한다."
+  },
+  {
+    "id": "0010",
+    "title": "Setup 화면 (/setup) 월급·고정비 입력",
+    "epic": "Epic 3: UI Pages",
+    "task": {
+      "description": "src/pages/Setup.tsx를 만든다. 저장된 Plan이 있으면 그 값으로 프리필하고, 없으면 월급날 기본값은 25다. 입력 항목은 월급 TextField(콤마), 월급날 TextField, 고정비 ListRow 목록(삭제 가능), 그리고 FixedCostSheet를 여는 '고정비 추가' 버튼이다. '쪼갤 수 있는 돈'을 실시간으로 보여준다. '다음'을 누르면 validateSetup을 통과한 경우에만 navigate('/ratio',{state:{draft}})로 이동한다. 이 state의 타입은 RouteState['/ratio']다.",
+      "acceptance_criteria": [
+        "저장된 Plan이 없을 때 월급 3000000, 월급날 25, 고정비 월세 500000·통신비 50000·보험 150000을 입력하고 '다음'을 탭하면 navigate('/ratio',{state:{draft:{salary:3000000,payday:25,fixedCosts:[3개]}}})가 호출된다",
+        "월급 3000000에 고정비 합계 700000이면 data-testid='remaining-preview'에 '쪼갤 수 있는 돈 2,300,000원'이 표시된다",
+        "월급 50000으로 '다음'을 탭하면 navigate가 호출되지 않고 월급 TextField의 hasError가 true다. 고정비가 0개면 data-testid='fixed-empty' 문구가 보인다"
+      ]
+    },
+    "covers": [
+      "F2-AC1",
+      "F2-AC2",
+      "F2-AC3",
+      "F2-AC4",
+      "F2-AC5"
+    ],
+    "files": [
+      "src/pages/Setup.tsx"
+    ],
+    "definition_of_done": [
+      "'다음'을 탭하면 logClick('setup_next')와 success 햅틱이 호출된다",
+      "고정비가 20개면 '고정비 추가' 버튼이 disabled다",
+      "tsc --noEmit가 통과하고 HEX 색상이 0건이다"
+    ],
+    "depends_on": [
+      "0007",
+      "0008",
+      "0009"
+    ],
+    "db_schema": "PlanDraft { salary:number; fixedCosts:FixedCost[]; payday:number } (navigate state 전용, 저장하지 않음)",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": "Pattern: FixedBottomCTA\n<ScreenScaffold>\n  <Top title={<Top.TitleParagraph>월급과 고정비를 알려주세요</Top.TitleParagraph>} />\n  <Spacing size={16} />\n  <TextField variant=\"box\" label=\"월급\" inputMode=\"numeric\" value={salaryComma}\n    help={salaryError ?? '예: 3,000,000원 (300만원)'} hasError={!!salaryError} />\n  <Spacing size={12} />\n  <TextField variant=\"box\" label=\"월급날\" inputMode=\"numeric\" value={payday}  // 기본값 25\n    help={paydayError} hasError={!!paydayError} />\n  <Spacing size={24} />\n  <Paragraph.Text typography=\"t4\">매달 나가는 고정비</Paragraph.Text>\n  <Spacing size={12} />\n  {fixedCosts.length === 0\n    ? <Paragraph.Text data-testid=\"fixed-empty\" typography=\"st8\" color=\"secondary\">\n        아직 고정비가 없어요. 월세·통신비처럼 매달 빠지는 돈을 추가해보세요</Paragraph.Text>\n    : fixedCosts.map(fc => <ListRow\n        contents={<ListRow.Texts type=\"1RowTypeA\" top={`${fc.name} ${fmt(fc.amount)}원`} />}\n        right={<Button size=\"small\" variant=\"weak\" color=\"dark\">삭제</Button>} />)}\n  <Spacing size={12} />\n  <Button variant=\"weak\" size=\"large\" display=\"block\">고정비 추가</Button>\n  <Spacing size={24} />\n  <Paragraph.Text data-testid=\"remaining-preview\" typography=\"t5\">\n    쪼갤 수 있는 돈 {fmt(remaining)}원</Paragraph.Text>\n  {fixedError && <Paragraph.Text typography=\"st9\" color=\"danger\">{fixedError}</Paragraph.Text>}\n  <SubmitFooter><Button variant=\"fill\" size=\"xlarge\">다음</Button></SubmitFooter>\n  <FixedCostSheet open={sheetOpen} ... />\n</ScreenScaffold>\nStates: 로딩 UI 없음(동기 읽기). 빈 상태는 fixed-empty 문구로 보여준다. 오류는 TextField hasError와 help 문구로 보여준다.\n키보드: TextField에 포커스되면 scrollIntoView({block:'center'})를 호출한다. 탭바는 없다(스택 화면)."
+  },
+  {
+    "id": "0011",
+    "title": "Ratio 화면 (/ratio) 프리셋·직접 조정",
+    "epic": "Epic 3: UI Pages",
+    "task": {
+      "description": "src/pages/Ratio.tsx를 만든다. location.state를 RouteState['/ratio']로 받는다. draft가 없으면 /setup으로 replace 이동한다. Chip 4개(기본 5:3:1:1, 저축 집중 4:4:1:1, 여유 생활 6:2:1:1, 직접 조정)로 비율을 고른다. 직접 조정은 4칸 TextField(0~100, clampRatio)로 입력한다. 합계가 100이 아니면 저장 버튼을 비활성화한다. 저장하면 savePlan 후 navigate('/result',{state:{justSaved:true}})로 이동하고, quota 실패면 Toast를 보여준다.",
+      "acceptance_criteria": [
+        "state 없이 /ratio에 진입하면 navigate('/setup',{replace:true})가 호출되고 크래시가 없다",
+        "'저축 집중 4:4:1:1' Chip을 탭하면 칸별 미리보기 금액이 remaining 2,300,000 기준으로 저축 920,000원, 생활비 920,000원으로 표시된다",
+        "직접 조정에서 합계가 90이면 저장 Button이 disabled이고 합계 문구가 표시된다. 합계 100에서 저장하면 psp.plan.v1에 presetId와 ratios가 저장되고 /result로 이동한다"
+      ]
+    },
+    "covers": [
+      "F3-AC1",
+      "F3-AC2",
+      "F3-AC3",
+      "F3-AC4",
+      "F3-AC5",
+      "F3-AC6"
+    ],
+    "files": [
+      "src/pages/Ratio.tsx"
+    ],
+    "definition_of_done": [
+      "Chip을 탭하면 tickWeak 햅틱, 저장하면 success 햅틱과 logClick('ratio_save')가 호출된다",
+      "기존 Plan을 수정해 저장하면 createdAt은 유지하고 updatedAt만 바뀐다",
+      "tsc --noEmit가 통과한다"
+    ],
+    "depends_on": [
+      "0008"
+    ],
+    "db_schema": "Plan → 'psp.plan.v1' (savePlan 경유)",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": "Pattern: FixedBottomCTA\n<ScreenScaffold> Top('비율을 골라주세요') → Spacing 16 → 가로 flex-wrap으로 TDS Chip 4개(선택 시 active) → Spacing 16 → custom일 때만 TextField variant=box inputMode=numeric ×4(생활비/저축/비상금/여가, hasError로 범위 표시) → Spacing 16 → ListRow ×4 미리보기('저축 30% · 690,000원') → Paragraph.Text st9 '합계 {n}%'(100이 아니면 color=danger) → SubmitFooter 안에 Button fill xlarge '저장하고 결과 보기'(합계가 100이 아니면 disabled).\n오류: Toast position=bottom에 '저장 공간이 부족해 저장하지 못했어요'. 탭바는 없다. HEX 색상 금지."
+  },
+  {
+    "id": "0012",
+    "title": "소득 구간 비교 섹션 (Result 잠금 층 컴포넌트)",
+    "epic": "Epic 3: UI Pages",
+    "task": {
+      "description": "src/components/IncomeScenarioSection.tsx를 만든다. props는 plan이다. buildIncomeScenarios(plan)의 결과를 월급 구간별 ListRow로 그린다. 각 행에는 월급, 쪼갤 수 있는 돈, 월 저축, 연 저축을 표시하고, 현재 월급 행은 Badge '지금'으로 구분한다. MiniBar로 월 저축을 상대 비교한다. 이 컴포넌트는 TossRewardAd로 감싸질 깊은 층이다. 게이트는 0013이 감싼다.",
+      "acceptance_criteria": [
+        "salary 3,000,000, 고정비 700,000, 50/30/10/10이면 data-testid='scenario-row'가 5개 렌더되고, 첫 행에 '연 4,680,000원'이 포함된다",
+        "salary 1,200,000, 고정비 600,000이면 scenario-row는 4개이고 700,000원 구간부터 시작한다",
+        "현재 월급과 같은 구간 행에만 Badge '지금'이 1개 표시된다"
+      ]
+    },
+    "covers": [
+      "F4-AC5",
+      "F4-AC6"
+    ],
+    "files": [
+      "src/components/IncomeScenarioSection.tsx"
+    ],
+    "definition_of_done": [
+      "외부 통계 없이 calc 결과만 사용한다",
+      "TDS ListRow, Badge, Paragraph.Text와 템플릿 MiniBar만 사용한다",
+      "tsc --noEmit가 통과한다"
+    ],
+    "depends_on": [
+      "0004"
+    ],
+    "db_schema": "",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": "Paragraph.Text t4 '월급이 달라지면 얼마나 모을까요' → Paragraph.Text st9 secondary '같은 고정비·같은 비율로 계산했어요' → Spacing 12 → 구간마다 <ListRow data-testid=\"scenario-row\" contents={<ListRow.Texts type=\"2RowTypeA\" top={`월급 ${won}`} bottom={`월 저축 ${won} · 연 ${won}`} />} right={isCurrent && <Badge>지금</Badge>} /> 아래에 MiniBar(월 저축 비율). 금액은 formatWon을 쓴다. HEX 색상 금지."
+  },
+  {
+    "id": "0013",
+    "title": "Result 화면 (/result) 무료 층 + 잠금 층·배너·공유",
+    "epic": "Epic 3: UI Pages",
+    "task": {
+      "description": "src/pages/Result.tsx를 만든다. 무료 층에는 SummaryHero(쪼갤 수 있는 돈), 4칸 배분 ListRow, 고정비 합계를 둔다. 그 아래 <TossRewardAd slotId={env}><IncomeScenarioSection/></TossRewardAd>로 깊은 층만 잠그고, 이어서 AdSlot 배너를 둔다. justSaved면 Toast '계획을 저장했어요'와 requestReviewOnce를 호출한다. Plan이 없으면 빈 상태와 '계획 만들기'를 보여준다.",
+      "acceptance_criteria": [
+        "F1-AC1 Plan이 저장된 상태로 진입하면 data-testid='bucket-row' 4개에 생활비 1,150,000원, 저축 690,000원, 비상금 230,000원, 여가 230,000원이 표시되고, 이 무료 층은 TossRewardAd 바깥에 렌더된다",
+        "state {justSaved:true}로 진입하면 Toast '계획을 저장했어요'가 1회 표시되고, state 없이 진입하면 Toast가 표시되지 않는다",
+        "Plan이 없으면 data-testid='result-empty'와 SubmitFooter '계획 만들기'가 표시되고, 탭하면 /setup으로 이동한다"
+      ]
+    },
+    "covers": [
+      "F4-AC1",
+      "F4-AC2",
+      "F4-AC3",
+      "F4-AC4",
+      "F4-AC5"
+    ],
+    "files": [
+      "src/pages/Result.tsx"
+    ],
+    "definition_of_done": [
+      "TossRewardAd는 IncomeScenarioSection만 감싼다(화면 전체를 감싸지 않음)",
+      "'공유하기' 버튼은 shareApp()을 호출하고 logClick('result_share')를 남긴다",
+      "slotId={import.meta.env.VITE_TOSS_AD_SLOT_ID}, adGroupId={import.meta.env.VITE_TOSS_AD_GROUP_ID}를 쓰고 tsc --noEmit가 통과한다"
+    ],
+    "depends_on": [
+      "0008",
+      "0012"
+    ],
+    "db_schema": "",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": "Pattern: PageShell + SummaryHero\n<ScreenScaffold> Top('이렇게 나누면 돼요') → Spacing 16 → <SummaryHero label=\"쪼갤 수 있는 돈\" value={formatWon(remaining)} caption={`월급 ${won} - 고정비 ${won}`} /> → Spacing 16 → BUCKET_ORDER 순서로 <ListRow data-testid=\"bucket-row\" contents={<ListRow.Texts type=\"2RowTypeA\" top={label} bottom={`${ratio}%`} />} right={<Paragraph.Text typography=\"t5\">{won}</Paragraph.Text>} /> → Spacing 24 → <TossRewardAd slotId=...><IncomeScenarioSection plan={plan} /></TossRewardAd> → Spacing 24 → <AdSlot adGroupId=... /> → Button weak large display=block '공유하기' → SubmitFooter 안에 Button fill xlarge '홈으로'(navigate('/')).\nEmpty: EmptyState data-testid=result-empty title='아직 계획이 없어요' + SubmitFooter '계획 만들기'.\nToast position=bottom. 탭바는 없다(스택 화면). 새로고침해 state가 없어도 크래시가 없어야 한다."
+  },
+  {
+    "id": "0014",
+    "title": "Home 화면 (/) D-day·이행률·이체 체크리스트",
+    "epic": "Epic 3: UI Pages",
+    "task": {
+      "description": "src/pages/Home.tsx를 만든다. Plan이 있으면 SummaryHero에 다음 월급날 D-day를, Card에 이번 달 이행률과 100%일 때 Badge를, 배분액이 0보다 큰 칸만 Switch 체크리스트로 보여준다. 토글은 usePlanStore.toggleBucket을 쓰고, 실패하면 이전 값으로 되돌리고 quota Toast를 띄운다. Plan이 없거나 손상됐으면 EmptyState와 '계획 만들기'를 보여주고, 손상이면 Toast를 1회 띄운다.",
+      "acceptance_criteria": [
+        "today=2026-09-23, payday 25이면 data-testid='dday-hero'에 'D-2'가 표시되고, payday 23이면 'D-DAY'가 표시된다",
+        "Plan 50/30/10/10에서 Switch 3개를 켜면 data-testid='month-rate'가 '75%'이고, 4개를 모두 켜면 '100%'와 Badge '이번 달 완료'가 표시된다. ratios 60/40/0/0이면 transfer-item은 2개다",
+        "psp.plan.v1이 '{broken'이면 data-testid='home-empty'와 Toast '저장된 계획을 불러오지 못했어요'가 표시되고, '계획 만들기'를 탭하면 /setup으로 이동한다"
+      ]
+    },
+    "covers": [
+      "F5-AC1",
+      "F5-AC2",
+      "F5-AC3",
+      "F5-AC4",
+      "F5-AC5",
+      "F5-AC6"
+    ],
+    "files": [
+      "src/pages/Home.tsx"
+    ],
+    "definition_of_done": [
+      "Switch에 tickWeak 햅틱을 주고, 켤 때만 logClick('transfer_check')를 남긴다",
+      "'계획 만들기'는 success 햅틱과 logClick('plan_create_start')를 남긴다",
+      "tsc --noEmit가 통과하고 HEX 색상이 0건이다"
+    ],
+    "depends_on": [
+      "0005",
+      "0008"
+    ],
+    "db_schema": "'psp.records.v1' 이번 달 레코드 {checked,total,rate} 갱신",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": "Pattern: PageShell (+ SummaryHero)\n<ScreenScaffold>\n  <Top title={<Top.TitleParagraph>PaySplitPlan</Top.TitleParagraph>} />\n  <Spacing size={16} />\n  <SummaryHero data-testid=\"dday-hero\" label=\"다음 월급날까지\"\n    value={dday === 0 ? 'D-DAY' : `D-${dday}`} caption={`매달 ${payday}일 월급`} />\n  <Spacing size={16} />\n  <Card>   // 이행률 (Card가 없으면 div + display:grid + var(--tds-color-grey50))\n    <Paragraph.Text typography=\"st9\" color=\"secondary\">이번 달 이체 이행률</Paragraph.Text>\n    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>\n      <Paragraph.Text typography=\"t2\" data-testid=\"month-rate\">{rate}%</Paragraph.Text>\n      {rate === 100 && <Badge>이번 달 완료</Badge>}\n    </div>\n  </Card>\n  <Spacing size={24} />\n  <Paragraph.Text typography=\"t4\">이번 달 이체 체크리스트</Paragraph.Text>\n  <Spacing size={12} />\n  {visibleBuckets.map(k =>\n    <ListRow data-testid=\"transfer-item\"\n      contents={<ListRow.Texts type=\"1RowTypeA\" top={`${label[k]} ${amt}원`} />}\n      right={<Switch checked={checked.includes(k)} onChange={toggle(k)} />} />)}\n  <Spacing size={24} />\n  <Button variant=\"weak\" size=\"large\" display=\"block\">배분 결과 보기</Button>\n  <Spacing size={8} />\n  <Button variant=\"weak\" size=\"large\" display=\"block\">계획 수정</Button>\n  <Spacing size={96} />\n</ScreenScaffold>\nEmpty: <EmptyState data-testid=\"home-empty\" title=\"월급을 어떻게 나눌지 계획해볼까요?\" description=\"월급과 고정비만 입력하면 네 칸으로 나눠드려요\" /> + SubmitFooter 안에 <Button variant=\"fill\" size=\"large\">계획 만들기</Button>.\nError: saveRecords가 실패하면 Switch를 원래 값으로 되돌리고 Toast '저장 공간이 부족해 저장하지 못했어요'.\n'배분 결과 보기'는 tickWeak 후 /result(state 없음), '계획 수정'은 tickWeak 후 /setup으로 이동한다. FloatingTabBar는 0017이 탭 루트에 배치한다."
+  },
+  {
+    "id": "0015",
+    "title": "[부가] 6개월 이행 추이 섹션 (History 잠금 층 컴포넌트)",
+    "epic": "Epic 3: UI Pages",
+    "task": {
+      "description": "[부가] src/components/TrendSection.tsx를 만든다. props는 records와 today다. recentMonths(records, today, 6)으로 최근 6개월 rate를 오래된 달부터 템플릿 Sparkline에 그린다. 그 아래에 6개월 평균 이행률(반올림)과 100% 달성 달 수를 표시한다. 기록이 없는 달은 0으로 채우지 않고 뺀다. History에서 TossRewardAd로 감쌀 깊은 층이다.",
+      "acceptance_criteria": [
+        "2026-04~2026-09 rate가 [0,50,75,100,100,25]이면 Sparkline data 길이가 6이고, data-testid='trend-avg'에 '평균 58%'가 표시된다",
+        "위 입력에서 data-testid='trend-full'에 '100% 달성 2개월'이 표시된다",
+        "기록이 1개월뿐이면 Sparkline 대신 '두 달 이상 기록되면 추이를 보여드려요' 문구가 표시된다"
+      ]
+    },
+    "covers": [
+      "F6-AC4",
+      "F6-AC5"
+    ],
+    "files": [
+      "src/components/TrendSection.tsx"
+    ],
+    "definition_of_done": [
+      "템플릿 Sparkline을 import해서 쓰고 다시 만들지 않는다",
+      "HEX 색상 0건, 간격은 Spacing으로만 준다",
+      "tsc --noEmit가 통과한다"
+    ],
+    "depends_on": [
+      "0006"
+    ],
+    "db_schema": "",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": "Paragraph.Text t4 '최근 6개월 이행 추이' → Spacing 12 → <Sparkline data={rates} /> → Spacing 12 → grid 2열에 Paragraph.Text t3 data-testid=trend-avg '평균 {n}%' / Paragraph.Text t3 data-testid=trend-full '100% 달성 {n}개월' → 각 아래 Paragraph.Text st9 secondary 캡션."
+  },
+  {
+    "id": "0016",
+    "title": "[부가] History 화면 (/history) 월별 이행률 목록",
+    "epic": "Epic 3: UI Pages",
+    "task": {
+      "description": "[부가] src/pages/History.tsx를 만든다. 무료 층에는 월별 이행률 목록을 최신 달부터 보여준다(ListRow, 월 라벨 '2026년 9월', rate%, 100%면 Badge). 그 아래 <TossRewardAd slotId={env}><TrendSection/></TossRewardAd>로 깊은 층만 잠그고, 이어서 AdSlot 배너를 둔다. 기록이 없거나 Plan이 없으면 EmptyState와 '계획 만들기'를 보여준다. 과거 달은 읽기 전용이다.",
+      "acceptance_criteria": [
+        "기록 2026-07(0%), 2026-08(50%), 2026-09(75%)이 있으면 data-testid='month-row' 3개가 2026년 9월, 8월, 7월 순서로 표시된다",
+        "월별 목록은 TossRewardAd 바깥에 렌더되어 광고 slotId가 없어도 항상 보이고, TrendSection만 게이트 안에 있다",
+        "Plan이 없으면 data-testid='history-empty'가 표시되고, '계획 만들기'를 탭하면 /setup으로 이동한다"
+      ]
+    },
+    "covers": [
+      "F6-AC1",
+      "F6-AC2",
+      "F6-AC3",
+      "F6-AC4"
+    ],
+    "files": [
+      "src/pages/History.tsx"
+    ],
+    "definition_of_done": [
+      "month-row에는 Switch 같은 편집 컨트롤이 없다",
+      "logImpression('history_trend_gate')를 게이트 노출 시 1회 남긴다",
+      "tsc --noEmit가 통과한다"
+    ],
+    "depends_on": [
+      "0008",
+      "0015"
+    ],
+    "db_schema": "'psp.records.v1' 읽기 전용",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": "Pattern: PageShell\n<ScreenScaffold> Top('월별 이행 기록') → Spacing 16 → 최신순 <ListRow data-testid=\"month-row\" contents={<ListRow.Texts type=\"2RowTypeA\" top={formatMonthLabel(m)} bottom={`${checked.length}/${total}칸 이체`} />} right={<>{rate}%{rate===100 && <Badge>완료</Badge>}</>} /> → Spacing 24 → <TossRewardAd slotId={import.meta.env.VITE_TOSS_AD_SLOT_ID}><TrendSection records today /></TossRewardAd> → Spacing 24 → <AdSlot adGroupId={import.meta.env.VITE_TOSS_AD_GROUP_ID} /> → Spacing 96(탭바 여백).\nEmpty: EmptyState data-testid=history-empty title='아직 기록이 없어요' + SubmitFooter '계획 만들기'. 로딩 UI 없음. 36개 이하라 가상 스크롤을 쓰지 않는다."
+  },
+  {
+    "id": "0017",
+    "title": "라우터·Provider·FloatingTabBar 배선 (진입점 단일 소유)",
+    "epic": "4",
+    "task": {
+      "description": "src/App.tsx가 유일한 진입점 소유자다. PlanStoreProvider로 감싸고 react-router Routes를 연결한다(/ Home, /setup Setup, /ratio Ratio, /result Result, /history History, * → / redirect). FloatingTabBar(홈 /, 기록 /history)는 탭 루트 경로에서만 렌더한다. 탭을 전환하면 tickWeak 햅틱을 준다. main.tsx는 수정하지 않는다.",
+      "acceptance_criteria": [
+        "'/'와 '/history'에서는 FloatingTabBar가 렌더되고, '/setup', '/ratio', '/result'에서는 렌더되지 않는다",
+        "'/unknown'으로 진입하면 '/'로 redirect된다",
+        "state 없이 '/ratio'와 '/result'로 직접 진입해도 콘솔 에러 없이 각각 /setup redirect와 결과·빈 상태 화면이 렌더된다"
+      ]
+    },
+    "covers": [
+      "F7-AC1",
+      "F7-AC2",
+      "F7-AC3"
+    ],
+    "files": [
+      "src/App.tsx"
+    ],
+    "definition_of_done": [
+      "src/App.tsx를 files에 가진 패킷은 이 패킷 하나뿐이다",
+      "src/main.tsx는 변경하지 않는다(@AI:ANCHOR)",
+      "npm run build와 tsc --noEmit가 통과한다"
+    ],
+    "depends_on": [
+      "0008",
+      "0010",
+      "0011",
+      "0013",
+      "0014",
+      "0016"
+    ],
+    "db_schema": "",
+    "api_contract": "",
+    "dependencies": [
+      "react-router-dom"
+    ],
+    "ui_requirements": "<PlanStoreProvider><Routes>...</Routes>{isTabRoot && <FloatingTabBar tabs={[{label:'홈',path:'/'},{label:'기록',path:'/history'}]} />}</PlanStoreProvider>. FloatingTabBar는 템플릿 제공 컴포넌트다(TDS TabBar는 존재하지 않음). 하단 고정 요소에는 safe-area 패딩을 준다."
+  },
+  {
+    "id": "0018",
+    "title": "광고 fail-open 검증·검수 준수 스크립트·스모크 테스트",
+    "epic": "Epic 4: Integration",
+    "task": {
+      "description": "App.tsx와 main.tsx는 건드리지 않는다. .env.example에 VITE_TOSS_AD_SLOT_ID와 VITE_TOSS_AD_GROUP_ID 빈 값을 적는다. 이 값은 빌드 시점에 주입되므로 바뀌면 재빌드가 필요하다는 주석도 단다. scripts/check-compliance.mjs는 src에서 HEX 색상, 금지 UI/광고/결제 SDK, crypto.randomUUID, '.at(', '취소' 버튼 문구, 앱 설치 유도 문구를 검사한다. 스모크 테스트는 전체 흐름을 콘솔 에러 0으로 검증한다.",
+      "acceptance_criteria": [
+        "node scripts/check-compliance.mjs가 현재 src에서 위반 0건으로 exit 0이고, HEX '#fff'를 넣은 임시 파일이 있으면 exit 1이다",
+        "스모크 테스트: 빈 저장소 → /setup 입력 → /ratio 저장 → /result에서 bucket-row 4개 → / 홈에서 Switch 토글 → /history에서 month-row 1개까지 진행하는 동안 console.error 호출이 0회다",
+        "VITE_TOSS_AD_SLOT_ID가 비어 있을 때 /result에서 scenario-row가 렌더된다(fail-open)"
+      ]
+    },
+    "covers": [
+      "F7-AC4",
+      "F7-AC5",
+      "F7-AC6",
+      "F7-AC7"
+    ],
+    "files": [
+      ".env.example",
+      "scripts/check-compliance.mjs",
+      "src/__tests__/app.smoke.test.tsx"
+    ],
+    "definition_of_done": [
+      "src/App.tsx와 src/main.tsx가 files에 없다",
+      "vitest 스모크 테스트가 통과한다",
+      "package.json 수정 없이 node로 스크립트를 실행할 수 있다"
+    ],
+    "depends_on": [
+      "0017"
+    ],
+    "db_schema": "",
+    "api_contract": "",
+    "dependencies": [],
+    "ui_requirements": "UI를 새로 만들지 않는다. 광고는 템플릿 AdSlot과 TossRewardAd만 쓴다(AdMob/AdSense 금지). IAP, 프로모션 리워드, AI 고지는 사용하지 않는다."
+  }
+]
