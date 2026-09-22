@@ -3,7 +3,7 @@ import React from "react";
 import { renderHook, act } from "@testing-library/react";
 
 import { PlanStoreProvider, usePlanStore } from "@/hooks/usePlanStore";
-import type { Plan, MonthRecordMap } from "@/lib/types";
+import type { Plan, MonthRecordMap, SaveResult } from "@/lib/types";
 import { toMonthKey } from "@/lib/date";
 import { PRESETS } from "@/lib/constants";
 
@@ -45,7 +45,7 @@ describe("Packet 0008: PlanStore Context (상태 관리 훅)", () => {
       const { result } = renderHook(() => usePlanStore(), { wrapper });
       const newPlan = makePlan({ salary: 4_000_000 });
 
-      let saveResult;
+      let saveResult: SaveResult | undefined;
       act(() => {
         saveResult = result.current.savePlan(newPlan);
       });
@@ -66,7 +66,7 @@ describe("Packet 0008: PlanStore Context (상태 관리 훅)", () => {
 
       const setItemSpy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(throwQuota);
 
-      let saveResult;
+      let saveResult: SaveResult | undefined;
       act(() => {
         saveResult = result.current.savePlan(makePlan({ salary: 9_000_000 }));
       });
@@ -85,7 +85,7 @@ describe("Packet 0008: PlanStore Context (상태 관리 훅)", () => {
 
       const { result } = renderHook(() => usePlanStore(), { wrapper });
 
-      let toggleResult;
+      let toggleResult: SaveResult | undefined;
       act(() => {
         toggleResult = result.current.toggleBucket("saving");
       });
@@ -130,7 +130,7 @@ describe("Packet 0008: PlanStore Context (상태 관리 훅)", () => {
 
       const setItemSpy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(throwQuota);
 
-      let toggleResult;
+      let toggleResult: SaveResult | undefined;
       act(() => {
         toggleResult = result.current.toggleBucket("saving");
       });
