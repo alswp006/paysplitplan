@@ -3,6 +3,21 @@ export function formatWon(amount: number): string {
   return `${formatComma(integer)}원`;
 }
 
+export function formatKrw(amount: number, opts?: { decimals?: number }): string {
+  const decimals = opts?.decimals ?? 0;
+  if (decimals <= 0) return formatWon(amount);
+
+  const formatted = amount.toLocaleString("ko-KR", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+  return `${formatted}원`;
+}
+
+export function formatPercent(value: number, decimals = 0): string {
+  return `${value.toFixed(decimals)}%`;
+}
+
 export function formatComma(num: number): string {
   return Math.floor(num).toLocaleString("ko-KR");
 }

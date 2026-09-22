@@ -1,19 +1,19 @@
-export const BUCKET_ORDER = ["living", "savings", "emergency", "leisure"] as const;
+export const BUCKET_ORDER = ["living", "saving", "emergency", "leisure"] as const;
 
 export type Bucket = (typeof BUCKET_ORDER)[number];
 
 export const BUCKET_LABEL: Record<Bucket, string> = {
   living: "생활비",
-  savings: "저축",
+  saving: "저축",
   emergency: "비상금",
   leisure: "여가",
 };
 
 export const PRESETS = {
-  basic_5311: { living: 50, savings: 30, emergency: 10, leisure: 10 },
-  saving_4411: { living: 40, savings: 40, emergency: 10, leisure: 10 },
-  living_6211: { living: 60, savings: 20, emergency: 10, leisure: 10 },
-  custom: { living: 0, savings: 0, emergency: 0, leisure: 0 },
+  basic_5311: { living: 50, saving: 30, emergency: 10, leisure: 10 },
+  saving_4411: { living: 40, saving: 40, emergency: 10, leisure: 10 },
+  living_6211: { living: 60, saving: 20, emergency: 10, leisure: 10 },
+  custom: { living: 0, saving: 0, emergency: 0, leisure: 0 },
 } as const;
 
 export const STORAGE_KEYS = {
@@ -28,7 +28,7 @@ export const LIMITS = {
 } as const;
 
 export const MSG = {
-  quota: "한 달에 최대 100개까지 기록할 수 있습니다",
-  planLoadFail: "저축 계획을 불러올 수 없습니다",
-  saved: "저장되었습니다",
+  quota: "저장 공간이 부족해 저장하지 못했어요",
+  planLoadFail: "저장된 계획을 불러오지 못했어요",
+  saved: "계획을 저장했어요",
 } as const;
