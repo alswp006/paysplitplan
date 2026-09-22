@@ -1,3 +1,6 @@
+/// <reference types="vitest" />
+/// <reference types="@testing-library/jest-dom" />
+
 /**
  * **부분 목 회귀** — `vi.mock(path, factory)`은 팩토리가 돌려주지 않은 export를 **읽는 순간**
  * throw한다(vitest 프록시 get 트랩). `PageShell`이 모듈 최상위에서 `react-router-dom`과
@@ -13,9 +16,15 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 
 // useInRouterContext·useLocation 없음 — 예전 코드에서 모듈 평가가 터지던 모양.
-vi.mock("react-router-dom", () => ({ useNavigate: () => vi.fn() }));
+vi.mock("react-router-dom", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("react-router-dom")>()),
+  useNavigate: () => vi.fn(),
+}));
 // useScreenLog 없음 — 이번 배치의 spec 프롬프트가 유도하는 모양.
-vi.mock("@/lib/analytics", () => ({ logClick: vi.fn() }));
+vi.mock("@/lib/analytics", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/analytics")>()),
+  logClick: vi.fn(),
+}));
 
 import { PageShell } from "@/components/PageShell";
 

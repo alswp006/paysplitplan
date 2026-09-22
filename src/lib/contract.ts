@@ -3,6 +3,11 @@
  *
  * 기반 패킷은 여기 선언된 모양 그대로 구현하고, 화면 패킷은 여기 적힌 이름·인자·반환
  * 타입을 그대로 가정해도 된다. 추측이 어긋나 병합에서 무너지는 것을 막기 위한 파일이다.
+ *
+ * @deprecated 이 파일은 아무 곳에서도 import되지 않는다. `Plan`/`MonthRecord` 등의
+ * 실제 정의는 `.ai-factory/spec.md`와 `src/lib/types.ts`가 확정본이며, 이 파일의
+ * 필드명(amountKrw, ratios.food 등)은 그것과 어긋난다 — 이 파일이 아니라 `src/lib/types.ts`를
+ * import하라.
  */
 
 /** (구현: 패킷 0001) */
