@@ -153,10 +153,16 @@ export function mockTds() {
       { Header: ({ children }: any) => React.createElement("div", null, children) },
     ),
 
-    Chip: ({ children, selected, onClick }: any) =>
+    // 실제 .d.ts: Chip은 그룹 컨테이너(div, ChipProps — selected/onClick 없음),
+    // 선택 가능한 개별 칩은 ChipItem(button, selected/onClick)이다. 평평한 Chip
+    // 하나로 선택 상태를 표현하면 tsc가 실패한다 — 반드시 Chip > ChipItem으로 조립.
+    Chip: ({ children, ...props }: any) =>
+      React.createElement("div", { role: "group", ...props }, children),
+
+    ChipItem: ({ children, selected, onClick, disabled }: any) =>
       React.createElement(
         "button",
-        { role: "button", "aria-pressed": selected, onClick },
+        { role: "button", "aria-pressed": !!selected, onClick, disabled },
         children,
       ),
 
@@ -338,7 +344,17 @@ export function mockTossRewardAd() {
 }
 
 // ── react-router-dom ──
-// Preserve actual router + override useNavigate for assertion.
+// Preserve actual router (including real useLocation, so MemoryRouter initialEntries state
+// flows through) + override useNavigate for assertion.
+//
+// ⚠️ vi.mock() calls are hoisted to the top of THIS file (mocks.ts) regardless of nesting
+// inside a function — merely importing anything from this module runs every vi.mock() body
+// below, whether or not mockRouter()/mockTds()/etc. is actually called. A previous version of
+// this factory statically overrode useLocation to return the fixed `mockLocation` object; since
+// the override fired unconditionally, it silently broke every page (e.g. Ratio) that reads
+// `useLocation().state` in tests that only called mockTds()/mockAppsInToss() and never touched
+// mockRouter() (real bug hit 2026-09-23 building packet 0011 — see git history for the repro).
+// Do NOT reintroduce a static useLocation override here.
 export function mockRouter() {
   vi.mock("react-router-dom", async () => {
     const actual = await vi.importActual<typeof import("react-router-dom")>(
@@ -347,7 +363,6 @@ export function mockRouter() {
     return {
       ...actual,
       useNavigate: () => mockNavigate,
-      useLocation: () => mockLocation,
     };
   });
 }
