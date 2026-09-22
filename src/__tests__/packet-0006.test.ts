@@ -1,8 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import type { Plan, MonthRecordMap, MonthRecord } from "@/lib/types";
-
-// These functions will be implemented in src/lib/records.ts
-// For now, we're writing tests that WILL FAIL (RED phase)
+import { ensureMonthRecords, toggleCheck, recentMonths } from "@/lib/records";
 
 describe("월 기록 로직 (빈 달 채우기·체크 토글·최근 N개월)", () => {
   beforeEach(() => {
@@ -558,14 +556,3 @@ describe("월 기록 로직 (빈 달 채우기·체크 토글·최근 N개월)",
     });
   });
 });
-
-// Mock function declarations (to be implemented)
-declare function ensureMonthRecords(
-  plan: Plan,
-  today: Date,
-  existing: MonthRecordMap
-): { map: MonthRecordMap; changed: boolean };
-
-declare function toggleCheck(map: MonthRecordMap, monthKey: string, bucket: string): MonthRecordMap;
-
-declare function recentMonths(map: MonthRecordMap, today: Date, count: number): string[];
