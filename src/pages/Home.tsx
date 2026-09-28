@@ -1,73 +1,110 @@
-import { Top, Paragraph, Spacing, ListRow, Button } from '@toss/tds-mobile';
+import { useState } from 'react';
+import { Top, Paragraph, Spacing, Button, Asset } from '@toss/tds-mobile';
+import { generateHapticFeedback } from '@apps-in-toss/web-framework';
 import { useNavigate } from 'react-router-dom';
-import { ScreenScaffold } from '../components/ScreenScaffold';
-import { SummaryHero } from '../components/SummaryHero';
-import { Card } from '../components/Card';
+import { ScreenScaffold } from '@/components/ScreenScaffold';
+import { SummaryHero } from '@/components/SummaryHero';
+import { FloatingTabBar } from '@/components/FloatingTabBar';
+import { ChecklistCard } from '@/components/home/ChecklistCard';
+import { logClick } from '@/lib/analytics';
+import { getToday } from '@/lib/date';
+import { getNextPayday } from '@/lib/dday';
+import { loadPlan } from '@/lib/storage';
 
-/**
- * Golden Home page — 대시보드/탭-루트 골든 레퍼런스.
- *
- * 다른 페이지를 쓸 때 이 패턴을 모방하라:
- * - ScreenScaffold로 감싼다(raw fragment 골격 금지) — safe-area + 100dvh 자동 처리.
- * - 화면 최상단에 SummaryHero로 시각 앵커를 만든다('휑함'의 가장 큰 원인은 앵커 부재).
- *   데이터가 있으면 value에 <Amount value={n} unit="원" typography="t1" />로 핵심 숫자를 크게 박아라.
- * - 1차 진입 액션은 SummaryHero 카드 내부 버튼(display="block", 전체폭)에 둔다.
- *   → 화면 중앙 부유/좌측 글자폭 버튼 금지. 하단 TabBar가 있으면 SubmitFooter와 겹치므로 카드 안에.
- * - 핵심 정보는 raw <div>가 아니라 Card로 묶어 위계를 만든다.
- * - 하단 탭이 필요하면(2~5탭): bottom={<FloatingTabBar items={[{label,path}...]} />}.
- *   ('TDS TabBar'는 존재하지 않는다 — 직접 만들지 말고 FloatingTabBar를 써라.)
- * - 카피는 CLAUDE.md "카피 규칙 — AI 냄새 금지"를 따른다: 기능 나열식 홍보 문구·상투구·
- *   generic 버튼("시작하기") 금지. 이 파일의 예시 문구도 앱 맥락에 맞게 교체 대상이다.
- *
- * Scaffold tokens (replaced by scaffold-toss.ts at project creation):
- *   PaySplitPlan -> the app's display name
- *   월급날 통장 쪼개기, 월급 300만원이면 어디에 얼마씩? 내 비율로 계획 짜고 지켰는지 체크    -> the one-line description
- */
-
-// ⚠ 이 목록은 골격 예시다 — 앱의 실제 콘텐츠(핵심 지표·최근 기록·바로가기)로 반드시 교체하라.
-// '간편한 사용/빠른 처리' 같은 기능 나열식 홍보 문구는 카피 규칙(CLAUDE.md "AI 냄새 금지") 위반이다.
-// 사용자가 이 화면에서 실제로 확인할 정보를 넣어라 — 아래처럼 데이터가 사는 행으로.
-const HIGHLIGHTS = [
-  { title: '오늘', description: '아직 기록이 없어요' },
-  { title: '이번 주', description: '기록 3건 · 평균 12분' },
+const TABS = [
+  { label: '홈', path: '/' },
+  { label: '기록', path: '/history' },
 ];
+
+function haptic(type: 'tickWeak' | 'success') {
+  try {
+    Promise.resolve(generateHapticFeedback({ type })).catch(() => {});
+  } catch {
+    /* WebView 밖(브라우저/검수자 PC/jsdom)에서는 throw — 무시 */
+  }
+}
 
 export default function Home() {
   const navigate = useNavigate();
+  // 마운트 때 1회만 읽는다. 손상된 계획은 loadPlan이 키를 지우고 null을 돌려준다.
+  const [plan] = useState(() => loadPlan());
+
+  const top = <Top title={<Top.TitleParagraph>월급 쪼개기</Top.TitleParagraph>} />;
+
+  if (!plan) {
+    return (
+      <ScreenScaffold top={top} bottom={<FloatingTabBar items={TABS} />}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+          <Spacing size={48} />
+          <Asset.ContentIcon name="icon-plus-small-mono" alt="" style={{ width: 48, height: 48 }} />
+          <Spacing size={16} />
+          <Paragraph.Text typography="t3">월급을 어디에 얼마씩 나눌지 정해볼까요?</Paragraph.Text>
+          <Spacing size={24} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignSelf: 'stretch' }}>
+            <Button
+              variant="fill"
+              size="large"
+              display="block"
+              onClick={() => {
+                haptic('success');
+                logClick('home_start_plan');
+                navigate('/plan');
+              }}
+            >
+              월급 계획 짜기
+            </Button>
+          </div>
+          <Spacing size={80} />
+        </div>
+      </ScreenScaffold>
+    );
+  }
+
+  const { dday, label } = getNextPayday(getToday(), plan.payday);
 
   return (
-    <ScreenScaffold
-      top={<Top title={<Top.TitleParagraph>월급쪼개기</Top.TitleParagraph>} />}
-    >
-      {/* 시각 앵커: 헤드라인 + 카드 내 진입 버튼(부유 금지, display="block" 전체폭).
-          데이터 앱이면 value를 <Amount typography="t1" />(핵심 숫자)로 교체하라. */}
+    <ScreenScaffold top={top} bottom={<FloatingTabBar items={TABS} />}>
+      <Spacing size={16} />
       <SummaryHero
-        label="월급쪼개기"
-        value={<Paragraph.Text typography="t2">월급날 통장 쪼개기, 월급 300만원이면 어디에 얼마씩? 내 비율로 계획 짜고 지켰는지 체크</Paragraph.Text>}
-        caption="로그인 없이 바로 쓸 수 있어요"
-        action={
-          // 라벨은 앱의 핵심 행동 동사로 교체하라 — "연봉 계산하기"/"기록 남기기" 등.
-          // generic "시작하기"/"확인"은 카피 규칙 위반. onClick도 실제 첫 화면 경로로.
-          <Button variant="fill" display="block" onClick={() => navigate('/')}>
-            첫 결과 보기
-          </Button>
+        testId="dday-hero"
+        label="다음 월급날까지"
+        value={
+          <>
+            <Paragraph.Text typography="t2">{`D-${dday}`}</Paragraph.Text>
+            {/* 스크린리더·텍스트 추출에서 'D-1'과 '9월 30일'이 'D-19월'로 붙지 않게 한다 */}
+            {' '}
+          </>
         }
-        testId="home-hero"
+        caption={label}
       />
-
       <Spacing size={24} />
-
-      {/* 핵심 정보는 Card로 묶기(raw div 금지) — 위계 생성 */}
-      <Card testId="home-highlights">
-        {HIGHLIGHTS.map((h, idx) => (
-          <ListRow
-            key={idx}
-            contents={<ListRow.Texts type="2RowTypeA" top={h.title} bottom={h.description} />}
-          />
-        ))}
-      </Card>
-
+      <ChecklistCard plan={plan} />
       <Spacing size={24} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <Button
+          variant="fill"
+          size="large"
+          display="block"
+          onClick={() => {
+            haptic('success');
+            navigate('/result');
+          }}
+        >
+          배분 결과 보기
+        </Button>
+        <Button
+          variant="weak"
+          size="large"
+          display="block"
+          onClick={() => {
+            haptic('tickWeak');
+            navigate('/plan');
+          }}
+        >
+          계획 수정
+        </Button>
+      </div>
+      <Spacing size={80} />
     </ScreenScaffold>
   );
 }
