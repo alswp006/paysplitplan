@@ -1,14 +1,215 @@
-// @ai-factory:placeholder
-// 배선 선행(wiring-first)이 깐 자리 페이지다 — App.tsx에 `/plan`로 이미 연결돼 있다.
-// 이 화면을 담당하는 패킷은 이 파일을 **통째로 교체**하라(위 마커 주석 포함 — 마커가 남으면 산출물로 인정되지 않는다).
-import { PageShell } from "../components/PageShell";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Button, ListRow, Paragraph, Spacing, TextField, Top, useToast } from "@toss/tds-mobile";
+import { generateHapticFeedback } from "@apps-in-toss/web-framework";
+import { ScreenScaffold } from "@/components/ScreenScaffold";
+import { SubmitFooter } from "@/components/BottomCTA";
+import { RatioBlock } from "@/components/plan/RatioBlock";
+import { FixedCostSheet } from "@/components/plan/FixedCostSheet";
+import { logClick } from "@/lib/analytics";
+import { formatManwon, formatWon } from "@/lib/format";
+import { PRESETS, resolvePresetId } from "@/lib/plan";
+import { sumRatios } from "@/lib/ratioForm";
+import {
+  FIXED_COST_LIMIT,
+  PAYDAY_HELP,
+  buildDraft,
+  formatAvailablePreview,
+  getAvailable,
+  sumFixedCosts,
+  validatePaydayInput,
+  validateSalaryInput,
+} from "@/lib/planForm";
+import { loadPlan } from "@/lib/storage";
+import type { FixedCost, Ratios, RouteState } from "@/lib/types";
+
+const DEFAULT_PAYDAY = "25";
+const MAX_FIXED_COST_TOAST = "고정비는 최대 10개까지 추가할 수 있어요";
+
+function tickMedium() {
+  try {
+    Promise.resolve(generateHapticFeedback({ type: "tickMedium" })).catch(() => {});
+  } catch {
+    /* WebView 밖(브라우저/검수자 PC/jsdom)에서는 throw — 무시 */
+  }
+}
+
+interface FormState {
+  salaryRaw: string;
+  paydayRaw: string;
+  fixedCosts: FixedCost[];
+  ratios: Ratios;
+  presetId: string;
+}
+
+function initialState(): FormState {
+  const plan = loadPlan();
+  if (!plan) {
+    return {
+      salaryRaw: "",
+      paydayRaw: DEFAULT_PAYDAY,
+      fixedCosts: [],
+      ratios: [...PRESETS.p532.ratios] as Ratios,
+      presetId: PRESETS.p532.id,
+    };
+  }
+  return {
+    salaryRaw: plan.salary.toLocaleString("ko-KR"),
+    paydayRaw: String(plan.payday),
+    fixedCosts: plan.fixedCosts,
+    ratios: [...plan.ratios] as Ratios,
+    presetId: resolvePresetId(plan.ratios),
+  };
+}
+
 export default function Plan() {
+  const navigate = useNavigate();
+  const { openToast } = useToast();
+  const [form, setForm] = useState<FormState>(initialState);
+  const [salaryTouched, setSalaryTouched] = useState(false);
+  const [paydayTouched, setPaydayTouched] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
+
+  const { salaryRaw, paydayRaw, fixedCosts, ratios, presetId } = form;
+  const fixedTotal = sumFixedCosts(fixedCosts);
+  const salary = validateSalaryInput(salaryRaw, fixedTotal);
+  const payday = validatePaydayInput(paydayRaw);
+  const ratioSum = sumRatios(ratios);
+  const ratioError = ratioSum === 100 ? null : `비율 합계를 100%로 맞춰주세요 (현재 ${ratioSum}%)`;
+
+  // 월급 빈 값은 버튼을 막는 사유가 아니다 — 탭하면 에러를 보여준다
+  const blockingError = (salary.empty ? null : salary.error) ?? payday.error ?? ratioError;
+  const salaryErrorShown = salary.error !== null && (salaryTouched || !salary.empty);
+  const paydayErrorShown = payday.error !== null && paydayTouched;
+
+  const setField = (patch: Partial<FormState>) => setForm((prev) => ({ ...prev, ...patch }));
+
+  const openSheet = () => {
+    if (fixedCosts.length >= FIXED_COST_LIMIT) {
+      openToast(MAX_FIXED_COST_TOAST);
+      return;
+    }
+    setSheetOpen(true);
+  };
+
+  const addCost = (cost: FixedCost) => {
+    setForm((prev) => ({ ...prev, fixedCosts: [...prev.fixedCosts, cost] }));
+    setSheetOpen(false);
+  };
+
+  const removeCost = (id: string) => {
+    tickMedium();
+    setForm((prev) => ({ ...prev, fixedCosts: prev.fixedCosts.filter((c) => c.id !== id) }));
+  };
+
+  const submit = () => {
+    setSalaryTouched(true);
+    setPaydayTouched(true);
+    const draft = buildDraft(form);
+    if (!draft) return;
+    logClick("plan_submit");
+    const state: RouteState = { draft };
+    navigate("/result", { state });
+  };
+
   return (
-    <PageShell>
-      <main data-testid="placeholder-plan">
-        <h1>계획 짜기</h1>
-        <p>이 화면은 준비 중이에요.</p>
-      </main>
-    </PageShell>
+    <ScreenScaffold
+      top={<Top title={<Top.TitleParagraph>계획 짜기</Top.TitleParagraph>} />}
+      bottom={
+        <SubmitFooter
+          label="배분 결과 보기"
+          onClick={submit}
+          disabled={blockingError !== null}
+          hint={blockingError ?? undefined}
+        />
+      }
+    >
+      <Spacing size={16} />
+      <TextField
+        variant="box"
+        label="월급"
+        labelOption="sustain"
+        placeholder="예: 3,000,000"
+        inputMode="numeric"
+        enterKeyHint="next"
+        value={salaryRaw}
+        onChange={(e) => {
+          setSalaryTouched(true);
+          setField({ salaryRaw: e.target.value });
+        }}
+        help={salaryErrorShown ? (salary.error ?? undefined) : formatManwon(salary.value) || undefined}
+        hasError={salaryErrorShown}
+      />
+      <Spacing size={12} />
+      <TextField
+        variant="box"
+        label="월급날"
+        labelOption="sustain"
+        placeholder="예: 25"
+        inputMode="numeric"
+        enterKeyHint="done"
+        suffix="일"
+        value={paydayRaw}
+        onChange={(e) => {
+          setPaydayTouched(true);
+          setField({ paydayRaw: e.target.value });
+        }}
+        help={paydayErrorShown ? (payday.error ?? undefined) : PAYDAY_HELP}
+        hasError={paydayErrorShown}
+      />
+      <Spacing size={24} />
+      <div>
+        <Paragraph.Text typography="t4">고정비</Paragraph.Text>
+      </div>
+      <Spacing size={12} />
+      {fixedCosts.length === 0 ? (
+        <div>
+          <Paragraph.Text typography="t6" color="var(--adaptiveGrey600)">
+            월세·통신비처럼 매달 나가는 돈을 추가해보세요
+          </Paragraph.Text>
+          <Spacing size={12} />
+        </div>
+      ) : (
+        fixedCosts.map((fc) => (
+          <ListRow
+            key={fc.id}
+            contents={<ListRow.Texts type="2RowTypeA" top={fc.name} bottom={formatWon(fc.amount)} />}
+            right={
+              <Button
+                variant="weak"
+                size="small"
+                color="danger"
+                aria-label={`${fc.name} 삭제`}
+                onClick={() => removeCost(fc.id)}
+              >
+                삭제
+              </Button>
+            }
+          />
+        ))
+      )}
+      <Button variant="weak" size="medium" onClick={openSheet}>
+        고정비 추가
+      </Button>
+      <Spacing size={8} />
+      <div>
+        <Paragraph.Text data-testid="available-preview" typography="t5">
+          {formatAvailablePreview(salaryRaw, fixedTotal)}
+        </Paragraph.Text>
+      </div>
+      <Spacing size={24} />
+      <div>
+        <Paragraph.Text typography="t4">어떻게 나눌까요?</Paragraph.Text>
+      </div>
+      <Spacing size={12} />
+      <RatioBlock
+        ratios={ratios}
+        presetId={presetId}
+        available={getAvailable(salaryRaw, fixedTotal)}
+        onChange={(nextRatios, nextPresetId) => setField({ ratios: nextRatios, presetId: nextPresetId })}
+      />
+      <Spacing size={80} />
+      <FixedCostSheet open={sheetOpen} onClose={() => setSheetOpen(false)} onAdd={addCost} />
+    </ScreenScaffold>
   );
 }
