@@ -29,6 +29,8 @@ export function validateFixedCostInput(rawName: string, rawAmount: string): Fixe
       amountError = "0보다 큰 금액을 입력해주세요";
       break;
     case "decimal":
+      amountError = "원 단위로 입력해주세요";
+      break;
     case "invalid":
       amountError = "숫자만 입력해주세요";
       break;

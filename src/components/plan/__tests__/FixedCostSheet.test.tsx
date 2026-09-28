@@ -25,7 +25,7 @@ describe("validateFixedCostInput", () => {
     expect(validateFixedCostInput("가".repeat(21), "50000").nameError).toBe("항목 이름은 20자 이내로 입력해주세요");
     expect(validateFixedCostInput("가".repeat(20), "50000").valid).toBe(true);
     expect(validateFixedCostInput("보험", "").amountError).toBe("금액을 입력해주세요");
-    expect(validateFixedCostInput("보험", "1.5").amountError).toBe("숫자만 입력해주세요");
+    expect(validateFixedCostInput("보험", "1.5").amountError).toBe("원 단위로 입력해주세요");
     expect(validateFixedCostInput(" 월세 ", "500,000")).toMatchObject({ name: "월세", amount: 500000, valid: true });
   });
 });

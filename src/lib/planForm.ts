@@ -6,7 +6,8 @@ export const SALARY_MAX = 100_000_000;
 export const FIXED_COST_LIMIT = 10;
 
 export const SALARY_EMPTY_ERROR = "월급을 입력해주세요";
-export const PAYDAY_HELP = "매달 25일처럼 날짜만 입력해요";
+export const PAYDAY_ERROR = "1~31 사이 날짜를 입력해주세요";
+export const PAYDAY_HELP ="매달 25일처럼 날짜만 입력해요";
 
 export interface SalaryResult {
   /** 유효한 월급(에러가 있으면 0) */
@@ -29,10 +30,11 @@ export function validateSalaryInput(raw: string, fixedTotal: number): SalaryResu
     case "negative":
       return { value: 0, error: "0보다 큰 금액을 입력해주세요", empty: false };
     case "decimal":
+      return { value: 0, error: "원 단위로 입력해주세요", empty: false };
     case "invalid":
       return { value: 0, error: "숫자만 입력해주세요", empty: false };
     case "ok":
-      if (parsed.value === 0) return { value: 0, error: "0보다 큰 금액을 입력해주세요", empty: false };
+      if (parsed.value === 0) return { value: 0, error: SALARY_EMPTY_ERROR, empty: true };
       if (parsed.value > SALARY_MAX) return { value: 0, error: "1억 원 이하로 입력해주세요", empty: false };
       if (fixedTotal >= parsed.value) {
         return { value: 0, error: "고정비가 월급보다 많아요. 금액을 확인해주세요", empty: false };
@@ -48,12 +50,9 @@ export interface PaydayResult {
 
 /** 월급날 원문 검증 — 1~31 정수만. */
 export function validatePaydayInput(raw: string): PaydayResult {
-  const s = String(raw ?? "").trim();
-  if (s === "") return { value: 0, error: "월급날을 입력해주세요" };
-  if (!/^\d+$/.test(s)) return { value: 0, error: "날짜는 숫자만 입력해주세요" };
-  const value = Number(s);
-  if (value < 1 || value > 31) return { value: 0, error: "1일부터 31일 사이로 입력해주세요" };
-  return { value, error: null };
+  const parsed = parseAmountInput(raw);
+  if (parsed.kind !== "ok" || parsed.value < 1 || parsed.value > 31) return { value: 0, error: PAYDAY_ERROR };
+  return { value: parsed.value, error: null };
 }
 
 /** 남는 돈 미리보기 문구. 월급이 유효하지 않거나 남는 돈이 0 이하면 '-원'(음수는 보여주지 않는다). */
