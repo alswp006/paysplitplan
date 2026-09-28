@@ -138,7 +138,7 @@ describe("결과 저장 버튼 + 덮어쓰기 확인 (ResultSaveFooter)", () => 
     await waitFor(() => expect(screen.getByRole("button", { name: "홈에서 이체 체크하기" })).toBeTruthy());
     expect(mockDialog.openConfirm).toHaveBeenCalledTimes(1);
     expect(mockDialog.openConfirm).toHaveBeenCalledWith(
-      expect.objectContaining({ title: "저장된 계획을 바꿀까요?", confirmButton: "바꾸기", cancelButton: "닫기" }),
+      expect.objectContaining({ title: "저장된 계획을 바꿀까요?", confirmButton: "바꾸기", cancelButton: "취소" }),
     );
     expect(savePlanCallsWhenAsked).toBe(0);
     expect(storedWhenAsked).toBe(before);

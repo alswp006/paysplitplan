@@ -55,9 +55,9 @@ export function ResultSaveFooter({
       if (existing && !isSamePlan(draft, existing)) {
         const ok = await dialog.openConfirm({
           title: "저장된 계획을 바꿀까요?",
-          description: "지금 계획으로 바꾸면 이전 계획은 사라져요",
+          description: "지금 계획으로 바뀌고, 이전 계획은 되돌릴 수 없어요. 이체 체크 기록은 그대로 남아요.",
           confirmButton: "바꾸기",
-          cancelButton: "닫기",
+          cancelButton: "취소",
         });
         if (!ok) return;
         tickConfirm();
