@@ -37,12 +37,12 @@ export default function Home() {
 
   return (
     <ScreenScaffold
-      top={<Top title={<Top.TitleParagraph>PaySplitPlan</Top.TitleParagraph>} />}
+      top={<Top title={<Top.TitleParagraph>월급쪼개기</Top.TitleParagraph>} />}
     >
       {/* 시각 앵커: 헤드라인 + 카드 내 진입 버튼(부유 금지, display="block" 전체폭).
           데이터 앱이면 value를 <Amount typography="t1" />(핵심 숫자)로 교체하라. */}
       <SummaryHero
-        label="PaySplitPlan"
+        label="월급쪼개기"
         value={<Paragraph.Text typography="t2">월급날 통장 쪼개기, 월급 300만원이면 어디에 얼마씩? 내 비율로 계획 짜고 지켰는지 체크</Paragraph.Text>}
         caption="로그인 없이 바로 쓸 수 있어요"
         action={
