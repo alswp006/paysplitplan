@@ -91,3 +91,19 @@ export type SaveResult = { ok: true } | { ok: false; error: "QUOTA" | "NO_PLAN" 
 export interface RouteState {
   draft: PlanDraft;
 }
+
+// ── Insights (저장하지 않는 파생 값) ──
+
+export interface BracketScenario {
+  salary: number;
+  saving: number;
+  annualSaving: number;
+  isCurrent: boolean;
+}
+
+export interface TrendSummary {
+  points: { month: string; rate: number | null }[];
+  average: number | null;
+  streak: number;
+  hasEnoughTrend: boolean;
+}

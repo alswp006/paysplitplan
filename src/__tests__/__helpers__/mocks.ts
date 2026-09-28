@@ -603,7 +603,9 @@ export const mockRequestReviewOnce = vi.fn();
 export const mockShareApp = vi.fn(async () => {});
 
 export function mockAnalytics() {
-  vi.mock("@/lib/analytics", () => ({
+  // vi.doMock — vi.mock은 함수 안에 있어도 파일 맨 위로 끌어올려져, mockAnalytics()를 부르지 않는 테스트가
+  // 자기 `vi.mock("@/lib/analytics", …)`(예: logImpression 스파이)를 걸어도 이 헬퍼를 import하는 순간 덮어쓴다.
+  vi.doMock("@/lib/analytics", () => ({
     // 값 export도 빠뜨리면 안 된다 — 접근 하나로 모듈 평가가 터진다(LogFields는 타입이라 런타임 export 없음).
     DWELL_MS: 3000,
     fireAndForget: vi.fn((call: () => unknown) => { try { void call(); } catch { /* noop */ } }),
