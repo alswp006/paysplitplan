@@ -62,7 +62,7 @@ function parsePlan(raw: string): SalaryPlan | null {
   }
 }
 
-/** 저장된 계획. 깨졌거나 검증에 실패하면 키를 지우고 null. 던지지 않고 console.error도 남기지 않는다. */
+/** 저장된 계획. 깨졌거나 검증에 실패하면 키를 지우고 null. 조용히 실패한다. */
 export function loadPlan(): SalaryPlan | null {
   const raw = readRaw(PLAN_KEY);
   if (raw === null) return null;
