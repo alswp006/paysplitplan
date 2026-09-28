@@ -1,14 +1,46 @@
-// @ai-factory:placeholder
-// 배선 선행(wiring-first)이 깐 자리 페이지다 — App.tsx에 `*`로 이미 연결돼 있다.
-// 이 화면을 담당하는 패킷은 이 파일을 **통째로 교체**하라(위 마커 주석 포함 — 마커가 남으면 산출물로 인정되지 않는다).
-import { PageShell } from "../components/PageShell";
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { Asset, Button, Paragraph, Spacing } from "@toss/tds-mobile";
+import { generateHapticFeedback } from "@apps-in-toss/web-framework";
+import { PageShell } from "@/components/PageShell";
+import { fireAndForget, logImpression } from "@/lib/analytics";
+
 export default function NotFound() {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    logImpression("not_found");
+  }, []);
+
   return (
     <PageShell>
-      <main data-testid="placeholder-not-found">
-        <h1>페이지 없음 404 폴백</h1>
-        <p>이 화면은 준비 중이에요.</p>
-      </main>
+      <div
+        data-testid="not-found"
+        style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", padding: "0 24px" }}
+      >
+        <Spacing size={80} />
+        <Asset.ContentIcon name="icon-search-bold-mono" alt="" style={{ width: 48, height: 48 }} />
+        <Spacing size={16} />
+        <Paragraph.Text typography="t3">페이지를 찾을 수 없어요</Paragraph.Text>
+        <Spacing size={8} />
+        <Paragraph.Text typography="t6" color="var(--adaptiveGrey600)">
+          주소가 바뀌었거나 없는 화면이에요
+        </Paragraph.Text>
+        <Spacing size={24} />
+        <div style={{ display: "flex", flexDirection: "column", alignSelf: "stretch" }}>
+          <Button
+            variant="fill"
+            size="large"
+            display="block"
+            onClick={() => {
+              fireAndForget(() => generateHapticFeedback({ type: "success" }));
+              navigate("/", { replace: true });
+            }}
+          >
+            홈으로 가기
+          </Button>
+        </div>
+      </div>
     </PageShell>
   );
 }

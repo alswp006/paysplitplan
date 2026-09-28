@@ -2,17 +2,8 @@ import { describe, it, expect, vi } from "vitest";
 import React from "react";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import {
-  MemoryRouter,
-  Routes,
-  Route,
-  useLocation,
-  useNavigate,
-  useNavigationType,
-} from "react-router-dom";
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import { mockTds, mockAppsInToss } from "@/__tests__/__helpers__/mocks";
-import NotFound from "@/pages/NotFound";
 
 mockTds();
 mockAppsInToss();
@@ -37,7 +28,9 @@ vi.mock("@/lib/analytics", async (importOriginal) => ({
 }));
 
 // navigate 호출 인자를 기록하되 실제 이동은 그대로 수행한다(history 동작을 검증해야 하므로).
-vi.mock("react-router-dom", async () => {
+// ⚠️ vi.mock이 아니라 vi.doMock + 동적 import다: mocks.ts는 import되는 순간 react-router-dom 목
+// (useNavigate → mockNavigate)을 호이스팅으로 등록해, 이 파일의 vi.mock을 덮어써 버린다.
+vi.doMock("react-router-dom", async () => {
   const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
   return {
     ...actual,
@@ -50,6 +43,11 @@ vi.mock("react-router-dom", async () => {
     },
   };
 });
+
+const { MemoryRouter, Routes, Route, useLocation, useNavigate, useNavigationType } = await import(
+  "react-router-dom"
+);
+const { default: NotFound } = await import("@/pages/NotFound");
 
 const h = React.createElement;
 
