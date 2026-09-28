@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Top, ListRow, Badge, Paragraph, Button, Spacing, Asset } from '@toss/tds-mobile';
+import { Top, ListRow, Badge, Paragraph, Button, Spacing } from '@toss/tds-mobile';
+import { CalendarCheck, House, History as HistoryIcon } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { ScreenScaffold } from '@/components/ScreenScaffold';
 import { SummaryHero } from '@/components/SummaryHero';
@@ -14,8 +15,8 @@ import { formatMonthLabel } from '@/lib/format';
 import { loadRecords } from '@/lib/storage';
 
 const TABS = [
-  { label: '홈', path: '/' },
-  { label: '기록', path: '/history' },
+  { label: '홈', path: '/', icon: <House size={22} aria-hidden /> },
+  { label: '기록', path: '/history', icon: <HistoryIcon size={22} aria-hidden /> },
 ];
 
 export default function History() {
@@ -29,13 +30,12 @@ export default function History() {
   if (monthsDesc.length === 0) {
     return (
       <ScreenScaffold top={top} bottom={<FloatingTabBar items={TABS} />}>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
-          <Spacing size={48} />
-          <Asset.ContentIcon name="icon-plus-small-mono" alt="" style={{ width: 48, height: 48 }} />
-          <Spacing size={16} />
-          <Paragraph.Text typography="t3">아직 기록이 없어요</Paragraph.Text>
-          <Spacing size={24} />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignSelf: 'stretch' }}>
+        <EmptyState
+          fill
+          icon={<CalendarCheck size={48} color="var(--adaptiveGrey500)" aria-hidden />}
+          title="아직 기록이 없어요"
+          description="월말에 통장별 이체를 체크하면 여기에 쌓여요"
+          action={
             <Button
               variant="fill"
               size="large"
@@ -47,9 +47,8 @@ export default function History() {
             >
               이번 달 체크하러 가기
             </Button>
-          </div>
-          <Spacing size={80} />
-        </div>
+          }
+        />
       </ScreenScaffold>
     );
   }

@@ -85,13 +85,13 @@ export function RatioBlock({
         />
       ))}
       <Spacing size={8} />
-      <div>
+      <div style={{ padding: "0 20px" }}>
         <Paragraph.Text data-testid="ratio-sum" typography="t5">
           합계 {sum}%
         </Paragraph.Text>
       </div>
       {sum !== 100 ? (
-        <div>
+        <div style={{ padding: "0 20px" }}>
           <Spacing size={4} />
           <Paragraph.Text typography="t6" color="var(--adaptiveRed500)">
             비율 합계를 100%로 맞춰주세요 (현재 {sum}%)

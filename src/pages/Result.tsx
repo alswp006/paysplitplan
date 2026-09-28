@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Asset, Button, Paragraph, Spacing, Top } from "@toss/tds-mobile";
+import { Button, Paragraph, Spacing, Top } from "@toss/tds-mobile";
+import { ChartPie } from "lucide-react";
 import { ScreenScaffold } from "@/components/ScreenScaffold";
+import { EmptyState } from "@/components/StateView";
 import { SummaryHero } from "@/components/SummaryHero";
 import { CountUp } from "@/components/CountUp";
 import { Card } from "@/components/Card";
@@ -68,18 +70,16 @@ export default function Result() {
   if (!source) {
     return (
       <ScreenScaffold top={top}>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
-          <Spacing size={48} />
-          <Asset.ContentIcon name="icon-plus-small-mono" alt="" style={{ width: 48, height: 48 }} />
-          <Spacing size={16} />
-          <Paragraph.Text typography="t3">아직 계획이 없어요</Paragraph.Text>
-          <Spacing size={24} />
-          <div style={{ display: "flex", flexDirection: "column", alignSelf: "stretch" }}>
+        <EmptyState
+          fill
+          icon={<ChartPie size={48} color="var(--adaptiveGrey500)" aria-hidden />}
+          title="아직 계획이 없어요"
+          action={
             <Button variant="fill" size="large" display="block" onClick={() => navigate("/plan")}>
               월급 계획 짜기
             </Button>
-          </div>
-        </div>
+          }
+        />
       </ScreenScaffold>
     );
   }

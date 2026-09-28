@@ -1,0 +1,34 @@
+{
+  "spec": "console",
+  "shots": [
+    {
+      "file": "01-portrait-home.png",
+      "route": "/",
+      "width": 636,
+      "height": 1048,
+      "orientation": "portrait"
+    },
+    {
+      "file": "02-portrait-plan.png",
+      "route": "/plan",
+      "width": 636,
+      "height": 1048,
+      "orientation": "portrait"
+    },
+    {
+      "file": "03-portrait-result.png",
+      "route": "/result",
+      "width": 636,
+      "height": 1048,
+      "orientation": "portrait"
+    },
+    {
+      "file": "04-landscape-home.png",
+      "route": "/",
+      "width": 1504,
+      "height": 741,
+      "orientation": "landscape"
+    }
+  ],
+  "skippedPlaceholder": []
+}

@@ -24,6 +24,8 @@ import { loadPlan } from "@/lib/storage";
 import type { FixedCost, Ratios, RouteState } from "@/lib/types";
 
 const DEFAULT_PAYDAY = "25";
+// TDS 입력·리스트의 내장 좌우 패딩(20px)에 맞춘 맨 텍스트·버튼용 거터 — 정렬선을 20px 하나로 통일한다.
+const GUTTER = { padding: "0 20px" } as const;
 const MAX_FIXED_COST_TOAST = "고정비는 최대 10개까지 추가할 수 있어요";
 
 function tickMedium() {
@@ -114,6 +116,7 @@ export default function Plan() {
 
   return (
     <ScreenScaffold
+      flush
       top={<Top title={<Top.TitleParagraph>계획 짜기</Top.TitleParagraph>} />}
       bottom={
         <SubmitFooter
@@ -158,12 +161,12 @@ export default function Plan() {
         hasError={paydayErrorShown}
       />
       <Spacing size={24} />
-      <div>
+      <div style={GUTTER}>
         <Paragraph.Text typography="t4">고정비</Paragraph.Text>
       </div>
       <Spacing size={12} />
       {fixedCosts.length === 0 ? (
-        <div>
+        <div style={GUTTER}>
           <Paragraph.Text typography="t6" color="var(--adaptiveGrey600)">
             월세·통신비처럼 매달 나가는 돈을 추가해보세요
           </Paragraph.Text>
@@ -188,17 +191,19 @@ export default function Plan() {
           />
         ))
       )}
-      <Button variant="weak" size="medium" onClick={openSheet}>
-        고정비 추가
-      </Button>
-      <Spacing size={8} />
-      <div>
-        <Paragraph.Text data-testid="available-preview" typography="t5">
+      <div style={GUTTER}>
+        <Button variant="weak" size="medium" onClick={openSheet}>
+          고정비 추가
+        </Button>
+      </div>
+      <Spacing size={16} />
+      <div style={GUTTER}>
+        <Paragraph.Text data-testid="available-preview" typography="t4">
           {formatAvailablePreview(salaryRaw, fixedTotal)}
         </Paragraph.Text>
       </div>
       <Spacing size={24} />
-      <div>
+      <div style={GUTTER}>
         <Paragraph.Text typography="t4">어떻게 나눌까요?</Paragraph.Text>
       </div>
       <Spacing size={12} />
@@ -208,7 +213,7 @@ export default function Plan() {
         available={getAvailable(salaryRaw, fixedTotal)}
         onChange={(nextRatios, nextPresetId) => setField({ ratios: nextRatios, presetId: nextPresetId })}
       />
-      <Spacing size={80} />
+      <Spacing size={128} />
       <FixedCostSheet open={sheetOpen} onClose={() => setSheetOpen(false)} onAdd={addCost} />
     </ScreenScaffold>
   );

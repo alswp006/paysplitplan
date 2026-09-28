@@ -14,6 +14,7 @@ export function EmptyState({
   description,
   action,
   testId,
+  fill,
 }: {
   /** Asset.ContentIcon 등(선택) */
   icon?: ReactNode;
@@ -22,6 +23,8 @@ export function EmptyState({
   /** 보조 액션 — <Button variant="weak" .../> 권장. 1차 CTA와 중복 금지. */
   action?: ReactNode;
   testId?: string;
+  /** 화면 본문 전체가 빈 상태일 때 — 남은 높이의 세로 중앙에 놓는다(상단 쏠림 방지). */
+  fill?: boolean;
 }) {
   return (
     <div
@@ -30,8 +33,11 @@ export function EmptyState({
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
+        justifyContent: fill ? "center" : undefined,
+        // 상단 Top(≈64px) + 하단 탭바/여백(≈96px)을 뺀 높이
+        minHeight: fill ? "calc(100dvh - 200px)" : undefined,
         textAlign: "center",
-        padding: "48px 24px",
+        padding: fill ? "0 8px 32px" : "48px 24px",
       }}
     >
       {icon}
@@ -46,7 +52,7 @@ export function EmptyState({
       {action ? (
         <>
           <Spacing size={20} />
-          {action}
+          <div style={{ alignSelf: "stretch" }}>{action}</div>
         </>
       ) : null}
     </div>

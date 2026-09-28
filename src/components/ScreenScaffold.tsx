@@ -18,15 +18,22 @@ export function ScreenScaffold({
   top,
   children,
   bottom,
+  flush,
 }: {
   top?: ReactNode;
   children: ReactNode;
   bottom?: ReactNode;
+  /**
+   * 본문 좌우 패딩을 없앤다. TDS TextField·ListRow·Chip은 자체 좌우 20px 패딩을 갖고 있어
+   * 16px 패딩과 겹치면 36px로 들여써지고, 맨 텍스트(16px)와 정렬선이 어긋난다.
+   * 그런 폼 화면은 flush로 두고 맨 텍스트만 20px 거터로 감싸 정렬선을 20px 하나로 맞춘다.
+   */
+  flush?: boolean;
 }) {
   return (
     <PageShell style={top ? { paddingTop: 0 } : undefined}>
       {top}
-      <div style={{ padding: "16px 16px 0" }}>{children}</div>
+      <div style={{ padding: flush ? "16px 0 0" : "16px 16px 0" }}>{children}</div>
       {bottom}
     </PageShell>
   );
