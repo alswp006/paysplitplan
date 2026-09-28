@@ -15,8 +15,8 @@ describe("ratioForm", () => {
     expect(stepRatio(30, 5)).toBe(35);
   });
 
-  it("getRatioRowText: 합 100이면 생활비가 잔액을 흡수, 아니면 각자 floor, 잔액 없으면 '-원'", () => {
-    expect(getRatioRowText("living", [50, 30, 10, 10], 1000001)).toBe("생활비 50% · 500,001원");
+  it("getRatioRowText: 합과 무관하게 각자 floor(잔액 흡수 없음), 잔액 없으면 '-원'", () => {
+    expect(getRatioRowText("living", [50, 30, 10, 10], 1000001)).toBe("생활비 50% · 500,000원");
     expect(getRatioRowText("saving", [50, 35, 10, 10], 2400000)).toBe("저축 35% · 840,000원");
     expect(getRatioRowText("living", [100, 30, 10, 10], 2400000)).toBe("생활비 100% · 2,400,000원");
     expect(getRatioRowText("saving", [50, 30, 10, 10], null)).toBe("저축 30% · -원");
