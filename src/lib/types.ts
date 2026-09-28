@@ -87,6 +87,3 @@ export type SaveResult = { ok: true } | { ok: false; error: "QUOTA" | "NO_PLAN" 
 export interface RouteState {
   draft: PlanDraft;
 }
-
-// Contract.ts imports from here using aliases:
-// import type { SalaryPlan as Plan, MonthRecord as Record, ReviewPromptState as Review }

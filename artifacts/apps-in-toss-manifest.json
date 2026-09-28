@@ -1,0 +1,36 @@
+{
+  "koreanName": "월급쪼개기",
+  "englishName": "PaySplitPlan",
+  "appName": "paysplitplan",
+  "ageRating": "만 19세 이상",
+  "appType": "비게임",
+  "supportEmail": "support@aifactory.dev",
+  "category": {
+    "primary": "재테크"
+  },
+  "subtitle": "월급 배분으로 저축 실천",
+  "description": "월급을 입력하면 생활비, 저축, 비상금, 여가 자금으로 자동 배분됩니다. 고정비를 먼저 빼고 남은 금액에서 비율을 조정할 수 있어요. 월급날에 실제 이체할 때는 체크리스트로 진행 상황을 확인하고, 매달 이행률을 기록해 저축 습관을 점검합니다.",
+  "searchKeywords": [
+    "월급쪼개기",
+    "급여배분",
+    "저축계획",
+    "통장나누기",
+    "저축습관",
+    "월급계획",
+    "재무관리",
+    "소비절약",
+    "자동배분"
+  ],
+  "keyFeatures": [
+    "월급 자동 배분",
+    "비율 조정으로 맞춤 설정",
+    "월급날 이체 체크리스트",
+    "월별 저축 이행률 추적"
+  ],
+  "_notes": {
+    "appTypeSuspected": false,
+    "appTypeReasons": [],
+    "reviewLevel": null,
+    "reviewReasons": []
+  }
+}
