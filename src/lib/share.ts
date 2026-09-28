@@ -55,7 +55,16 @@ export async function shareApp(opts: ShareAppOptions): Promise<void> {
   // 실패는 여기서 삼킨다 — 사용자가 공유를 취소해도 reject되지 않는다(docs).
   try {
     await share({ message: text });
+    return;
   } catch {
-    // 브릿지 없음 / 공유 시트 미지원 — 조용히 degrade.
+    // 브릿지 없음 / 공유 시트 미지원 — 웹 공유로 넘어간다.
+  }
+
+  try {
+    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+      await navigator.share({ text });
+    }
+  } catch {
+    // AbortError(사용자 취소)·미지원 — 조용히 degrade.
   }
 }

@@ -13,9 +13,9 @@ describe("계측·공유·D-day 유틸 (packet-0003)", () => {
       vi.useRealTimers();
     });
 
-    it("AC-1[P0]: payday 25일 — 9/29에서 10/25까지 D-day 26 반환", () => {
+    it("AC-1[P0]: payday 25일 — 9/29에서 10/25까지 D-day 26 반환", async () => {
       vi.setSystemTime(new Date("2026-09-29T09:00:00+09:00"));
-      const { getNextPayday } = require("@/lib/dday");
+      const { getNextPayday } = await import("@/lib/dday");
       const result = getNextPayday(new Date(2026, 8, 29), 25);
 
       expect(result).toBeDefined();
@@ -24,9 +24,9 @@ describe("계측·공유·D-day 유틸 (packet-0003)", () => {
       expect(result.nextPaydayDate).toEqual(new Date(2026, 9, 25));
     });
 
-    it("AC-1[P0]: payday 31일(말일 초과) — 9월 30일로 당기고 D-day 1 반환", () => {
+    it("AC-1[P0]: payday 31일(말일 초과) — 9월 30일로 당기고 D-day 1 반환", async () => {
       vi.setSystemTime(new Date("2026-09-29T09:00:00+09:00"));
-      const { getNextPayday } = require("@/lib/dday");
+      const { getNextPayday } = await import("@/lib/dday");
       const result = getNextPayday(new Date(2026, 8, 29), 31);
 
       expect(result.dday).toBe(1);
@@ -34,27 +34,27 @@ describe("계측·공유·D-day 유틸 (packet-0003)", () => {
       expect(result.nextPaydayDate).toEqual(new Date(2026, 8, 30));
     });
 
-    it("AC-1: 오늘이 월급날 — D-day 0 반환", () => {
+    it("AC-1: 오늘이 월급날 — D-day 0 반환", async () => {
       vi.setSystemTime(new Date("2026-09-25T09:00:00+09:00"));
-      const { getNextPayday } = require("@/lib/dday");
+      const { getNextPayday } = await import("@/lib/dday");
       const result = getNextPayday(new Date(2026, 8, 25), 25);
 
       expect(result.dday).toBe(0);
       expect(result.label).toBe("9월 25일 월급날");
     });
 
-    it("AC-1: 같은 달 내에 월급날이 있으면 그 날짜 반환", () => {
+    it("AC-1: 같은 달 내에 월급날이 있으면 그 날짜 반환", async () => {
       vi.setSystemTime(new Date("2026-09-05T09:00:00+09:00"));
-      const { getNextPayday } = require("@/lib/dday");
+      const { getNextPayday } = await import("@/lib/dday");
       const result = getNextPayday(new Date(2026, 8, 5), 10);
 
       expect(result.dday).toBe(5);
       expect(result.label).toBe("9월 10일 월급날");
     });
 
-    it("AC-1: 2월 말일 처리 — 평년 2/28", () => {
+    it("AC-1: 2월 말일 처리 — 평년 2/28", async () => {
       vi.setSystemTime(new Date("2026-02-27T09:00:00+09:00"));
-      const { getNextPayday } = require("@/lib/dday");
+      const { getNextPayday } = await import("@/lib/dday");
       const result = getNextPayday(new Date(2026, 1, 27), 31);
 
       // 2026년은 평년이므로 2월은 28일까지
@@ -62,9 +62,9 @@ describe("계측·공유·D-day 유틸 (packet-0003)", () => {
       expect(result.dday).toBe(1);
     });
 
-    it("AC-1: 윤년 2월 말일 처리 — 2/29", () => {
+    it("AC-1: 윤년 2월 말일 처리 — 2/29", async () => {
       vi.setSystemTime(new Date("2024-02-28T09:00:00+09:00"));
-      const { getNextPayday } = require("@/lib/dday");
+      const { getNextPayday } = await import("@/lib/dday");
       const result = getNextPayday(new Date(2024, 1, 28), 31);
 
       // 2024년은 윤년이므로 2월은 29일까지
@@ -95,8 +95,8 @@ describe("계측·공유·D-day 유틸 (packet-0003)", () => {
       vi.resetModules();
     });
 
-    it("AC-2[P0]: logClick이 내부 SDK throw를 catch하고 예외 없음", () => {
-      const { logClick } = require("@/lib/analytics");
+    it("AC-2[P0]: logClick이 내부 SDK throw를 catch하고 예외 없음", async () => {
+      const { logClick } = await import("@/lib/analytics");
 
       // logClick이 throw하지 않아야 함
       expect(() => {
@@ -104,8 +104,8 @@ describe("계측·공유·D-day 유틸 (packet-0003)", () => {
       }).not.toThrow();
     });
 
-    it("AC-2[P0]: logImpression이 내부 SDK throw를 catch하고 예외 없음", () => {
-      const { logImpression } = require("@/lib/analytics");
+    it("AC-2[P0]: logImpression이 내부 SDK throw를 catch하고 예외 없음", async () => {
+      const { logImpression } = await import("@/lib/analytics");
 
       // logImpression이 throw하지 않아야 함
       expect(() => {
@@ -113,7 +113,7 @@ describe("계측·공유·D-day 유틸 (packet-0003)", () => {
       }).not.toThrow();
     });
 
-    it("AC-2: 정상 SDK 환경에서도 logClick이 호출 가능", () => {
+    it("AC-2: 정상 SDK 환경에서도 logClick이 호출 가능", async () => {
       // 목 제거 후 정상 SDK
       vi.resetModules();
       vi.doMock("@apps-in-toss/web-framework", () => ({
@@ -123,7 +123,7 @@ describe("계측·공유·D-day 유틸 (packet-0003)", () => {
         },
       }));
 
-      const { logClick } = require("@/lib/analytics");
+      const { logClick } = await import("@/lib/analytics");
       expect(() => {
         logClick("test_event");
       }).not.toThrow();
@@ -153,10 +153,9 @@ describe("계측·공유·D-day 유틸 (packet-0003)", () => {
         configurable: true,
       });
 
-      const { shareApp } = require("@/lib/share");
+      const { shareApp } = await import("@/lib/share");
       const result = await shareApp({ message: "테스트 공유" });
 
-      expect(result).toBeDefined();
       expect(result).toBeUndefined(); // no-op resolve
 
       // 복원
@@ -177,10 +176,8 @@ describe("계측·공유·D-day 유틸 (packet-0003)", () => {
         configurable: true,
       });
 
-      const { shareApp } = require("@/lib/share");
-      const result = await shareApp({ message: "테스트" });
-
-      expect(result).toBeDefined();
+      const { shareApp } = await import("@/lib/share");
+      await expect(shareApp({ message: "테스트" })).resolves.toBeUndefined();
     });
 
     it("AC-3: navigator.share가 성공하면 그대로 사용", async () => {
@@ -191,7 +188,7 @@ describe("계측·공유·D-day 유틸 (packet-0003)", () => {
         configurable: true,
       });
 
-      const { shareApp } = require("@/lib/share");
+      const { shareApp } = await import("@/lib/share");
       await shareApp({ message: "공유" });
 
       expect(mockShare).toHaveBeenCalled();
@@ -205,7 +202,7 @@ describe("계측·공유·D-day 유틸 (packet-0003)", () => {
         configurable: true,
       });
 
-      const { shareApp } = require("@/lib/share");
+      const { shareApp } = await import("@/lib/share");
       await shareApp({ message: "결과 공유", path: "/result?id=123" });
 
       // navigator.share 호출 시 message에 path 정보 포함 또는 별도 처리
@@ -222,8 +219,8 @@ describe("계측·공유·D-day 유틸 (packet-0003)", () => {
       const path = await import("path");
       const srcPath = path.resolve("src");
 
-      const readdir = (dir) => {
-        const files = [];
+      const readdir = (dir: string): string[] => {
+        const files: string[] = [];
         try {
           fs.readdirSync(dir).forEach((file) => {
             const fullPath = path.join(dir, file);
@@ -265,16 +262,16 @@ describe("계측·공유·D-day 유틸 (packet-0003)", () => {
   // 통합: analytics, share, dday 모두 예외 안전 & 폴백
   // ============================================================================
   describe("통합: 래퍼 안전성", () => {
-    it("logClick 호출이 로그 실패로 인해 앱 크래시 방지", () => {
+    it("logClick 호출이 로그 실패로 인해 앱 크래시 방지", async () => {
       // 정상 환경에서도 호출 가능 (예외 없음)
-      const { logClick } = require("@/lib/analytics");
+      const { logClick } = await import("@/lib/analytics");
       expect(() => {
         logClick("integration_test");
       }).not.toThrow();
     });
 
     it("shareApp 호출이 공유 실패로 인해 앱 크래시 방지", async () => {
-      const { shareApp } = require("@/lib/share");
+      const { shareApp } = await import("@/lib/share");
       const result = await shareApp({ message: "통합 테스트" });
 
       // 항상 resolve (never reject)
