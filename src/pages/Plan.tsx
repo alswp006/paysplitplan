@@ -7,7 +7,7 @@ import { SubmitFooter } from "@/components/BottomCTA";
 import { RatioBlock } from "@/components/plan/RatioBlock";
 import { FixedCostSheet } from "@/components/plan/FixedCostSheet";
 import { logClick } from "@/lib/analytics";
-import { formatManwon, formatWon } from "@/lib/format";
+import { formatManwon, formatWon, parseAmountInput } from "@/lib/format";
 import { PRESETS, resolvePresetId } from "@/lib/plan";
 import { sumRatios } from "@/lib/ratioForm";
 import {
@@ -34,6 +34,12 @@ function tickMedium() {
   } catch {
     /* WebView 밖(브라우저/검수자 PC/jsdom)에서는 throw — 무시 */
   }
+}
+
+/** 해석 결과가 ok일 때만 콤마를 붙인다. 그 외는 원문 그대로(에러 문구와 함께 보여준다). */
+function formatSalaryRaw(raw: string): string {
+  const parsed = parseAmountInput(raw);
+  return parsed.kind === "ok" ? parsed.value.toLocaleString("ko-KR") : raw;
 }
 
 interface FormState {
@@ -137,7 +143,7 @@ export default function Plan() {
         value={salaryRaw}
         onChange={(e) => {
           setSalaryTouched(true);
-          setField({ salaryRaw: e.target.value });
+          setField({ salaryRaw: formatSalaryRaw(e.target.value) });
         }}
         help={salaryErrorShown ? (salary.error ?? undefined) : formatManwon(salary.value) || undefined}
         hasError={salaryErrorShown}
