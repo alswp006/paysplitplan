@@ -34,11 +34,11 @@ export function ResultSaveFooter({
   const doSave = () => {
     const result = savePlan(draft);
     if (result.ok) {
-      toast.openToast("계획을 저장했어요");
+      toast.openToast("계획을 저장했어요", { higherThanCTA: true });
       requestReviewOnce();
       setSaved(true);
     } else {
-      toast.openToast("저장 공간이 부족해 저장하지 못했어요");
+      toast.openToast("저장 공간이 부족해 저장하지 못했어요", { higherThanCTA: true });
     }
   };
 
