@@ -189,6 +189,7 @@ export interface RouteState {
     analytics.ts
     contract.ts
     date.ts
+    dday.ts
     format.ts
     id.ts
     review.ts
@@ -216,6 +217,7 @@ export interface RouteState {
 - analytics.ts: export type LogFields = Record<string, string | number | boolean | null>; export const DWELL_MS = 3000; export function fireAndForget(call: () => unknown): void; export function logScreen(page: string, extra?: LogFields): void; export function logClick(name: string, extra?: LogFields): void; export function logImpression(name: string, extra?: LogFields): void; export function useScreenLog(page: string): void
 - contract.ts: export type RouteState =; export type formatAmountFn = (amountKrw: number, opts?:; export type formatDateFn = (date: string | Date, format?: 'YYYY-MM-DD' | 'M/D' | 'MMM D') => string; export type generateIdFn = (prefix?: string) => string; export type calculateDdayFn = (targetDate: string) => number; export type calculateDistributionFn = (monthlyIncome: number, fixedCosts: number, ratios:; export type validatePlanFn = (plan: unknown) =>; export type loadPlanFn = (planId: string) => Plan | null
 - date.ts: export function getToday(): Date; export function nowIso(): string; export function isIsoTimestamp(x: unknown): x is string; export function monthKey(d: Date): string; export function shiftMonth(month: string, n: number): string; export type DateFormat = "YYYY-MM-DD" | "M/D" | "MMM D"; export function formatDate(date: string | Date, format: DateFormat = "YYYY-MM-DD"): string
+- dday.ts: export interface NextPayday; export function getNextPayday(today: Date, payday: number): NextPayday; export function calculateDday(targetDate: string): number
 - format.ts: export function formatWon(n: number): string; export function formatManwon(n: number): string; export function parseAmountInput(raw: string): ParsedAmount; export function formatMonthLabel(month: string): string; export function formatAmount( amountKrw: number, opts?:
 - id.ts: export function createId(): string; export function generateId(prefix?: string): string
 - review.ts: export function requestReviewOnce(key: string = REVIEW_REQUESTED_KEY): void
@@ -241,82 +243,11 @@ export interface RouteState {
 - TossRewardAd.tsx: TossRewardAd
 
 ### Module Dependencies (import graph)
+  lib/dday.ts → imports: lib/date
   lib/format.ts → imports: lib/types
 CRITICAL: Before creating any new function, type, or component, check the list above. If something similar exists, import and use it.
 
 ## Already Implemented (do NOT duplicate or overwrite)
 - 0001: 엔티티 타입, RouteState 계약, 테스트 환경 (files: src/lib/types.ts, package.json, vitest.config.ts, src/test/setup.ts)
 - 0002: 공용 유틸: 날짜, ID, 금액 포맷 (files: src/lib/date.ts, src/lib/id.ts, src/lib/format.ts, src/lib/__tests__/format.test.ts)
-
-## Available exports from existing files
-// src/App.tsx
-export default function App() {
-
-// src/components/AdSlot.tsx
-export function AdSlot({ adGroupId, className, variant, theme }: AdSlotProps) {
-
-// src/components/Amount.tsx
-export function Amount({
-
-// src/components/BottomCTA.tsx
-export function SubmitFooter({
-export function ButtonStack({
-
-// src/components/Card.tsx
-export function Card({
-
-// src/components/CountUp.tsx
-export function CountUp({
-
-// src/components/FloatingTabBar.tsx
-export type TabItem = {
-export function FloatingTabBar({ items }: { items: TabItem[] }) {
-
-// src/components/MiniBar.tsx
-export function MiniBar({
-
-// src/components/PageShell.tsx
-export function PageShell({
-
-// src/components/ScreenScaffold.tsx
-export function ScreenScaffold({
-
-// src/components/Sparkline.tsx
-export function Sparkline({
-
-// src/components/StateView.tsx
-export function EmptyState({
-export function LoadingState({
-
-// src/components/SummaryHero.tsx
-export function SummaryHero({
-
-// src/components/TossPurchase.tsx
-export interface TossPurchaseResult {
-export function TossPurchase({
-
-// src/components/TossRewardAd.tsx
-export function TossRewardAd({
-
-// src/lib/contract.ts
-export type RouteState = { current: 'home' | 'plan' | 'result' | 'history' | 'notfound'; planId?: string; recordDate?: string };
-export type formatAmountFn = (amountKrw: number, opts?: { symbol?: boolean; decimals?: number }) => string;
-export type formatDateFn = (date: string | Date, format?: 'YYYY-MM-DD' | 'M/D' | 'MMM D') => string;
-export type generateIdFn = (prefix?: string) => string;
-export type calculateDdayFn = (targetDate: string) => number;
-export type calculateDistributionFn = (monthlyIncome: number, fixedCosts: number, ratios: { categoryId: string; percent: number }[]) => { categoryId: string; allocated: number }[];
-export type validatePlanFn = (plan: unknown) => { valid: boolean; errors: string[] };
-export type loadPlanFn = (planId: string) => Plan | null;
-export type savePlanFn = (plan: Plan) => void;
-export type loadRecordsFn 
-
-## Memory Index (자동 학습 — 힌트로만 사용, 실제 코드 확인 필수)
-
-Available topics: deploy(4), general(14), testing(2), ui(3)
-
-Key lessons (verify against actual code before applying):
-- [general] 진입점 라우터 배선은 맨 끝에 두지 말고 기반 패킷 직후 플레이스홀더 페이지와 함께 먼저 병합하라. 화면 패킷은 그 플레이스홀더를 교체하게 해서, 언제 중단돼도 병합된 화면에 도달할 수 있게 하라. (60% · 타 앱 1회 — 맹신 금지)
-- [general] 파일 생성 전 디렉토리 구조 확인 — mkdir -p로 경로 보장 (60% · 타 앱 1회 — 맹신 금지)
-- [general] 화면·라우팅 등 소비자 모듈은 그것이 import하는 생산자 모듈이 병합된 뒤에만 병합하고, 순서를 지킬 수 없으면 소비자 병합과 동시에 최소 플레이스홀더를 만들어 매 병합 직후 타입체크와 빌드가 항상 통과하도록 유지하라. (60% · 타 앱 1회 — 맹신 금지)
-- [general] 전역 라우팅·탭바·Provider 배선은 개별 화면보다 먼저(초반 20% 안에) 완료하고 미구현 화면은 스텁 라우트로 연결해, 시간 예산이 소진돼도 앱이 항상 실행 가능한 상태를 유지하라. (60% · 타 앱 1회 — 맹신 금지)
-- [general] 저장·데이터 접근 등 기반 계층 패킷은 이를 import 하는 화면 패킷보다 반드시 먼저 완료·병합하고, 미완료면 상위 화면 패킷 병합을 차단하라 — 빈 기반 모듈 하나가 전 라우트 스모크를 무너뜨린다. (60% · 타 앱 1회 — 맹신 금지)
+- 0003: 계측·공유·D-day 유틸 (files: src/lib/analytics.ts, src/lib/share.ts, src/lib/dday.ts, src/lib/__tests__/dday.test.ts)
