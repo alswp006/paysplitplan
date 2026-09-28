@@ -75,10 +75,13 @@ export interface Allocation {
   percentage: number;
 }
 
-export interface ParsedAmount {
-  value: number;
-  currency: string;
-}
+// parseAmountInput 결과 (SPEC P-2a) — ok일 때만 value가 있다
+export type ParsedAmount =
+  | { kind: "empty"; value?: undefined }
+  | { kind: "ok"; value: number } // 0 이상 정수
+  | { kind: "negative"; value?: undefined }
+  | { kind: "decimal"; value?: undefined }
+  | { kind: "invalid"; value?: undefined };
 
 // ── Result and route state types ──
 
