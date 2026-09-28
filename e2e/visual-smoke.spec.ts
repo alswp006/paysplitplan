@@ -15,7 +15,7 @@ const ROUTES: { path: string; name: string }[] = [
   { path: "/plan", name: "plan" },
   { path: "/history", name: "history" },
   { path: "/result", name: "result" },
-  // { path: "/settings", name: "settings" },
+  { path: "/notfound", name: "notfound" },
 ];
 
 /** 데이터가 필요한 화면용 localStorage 시드(앱에 맞게 채워라). 앱 스크립트보다 먼저 실행된다. */
@@ -78,6 +78,11 @@ for (const route of ROUTES) {
     expect(errors, `${route.name}: 콘솔 에러`).toEqual([]);
 
     // 5) 스크린샷 저장 → 끝내기 전 직접 열어 자가 리뷰(휑함/솔리드 알약 탭/부유 CTA/앵커 없음)
+    // fullPage 캡처는 position:fixed 하단 CTA를 "첫 뷰포트 하단"에 찍어 콘텐츠 중간에 떠 보인다.
+    // 뷰포트를 문서 높이로 키워 고정 요소가 실제 하단에 붙은 모습으로 캡처한다.
+    const docHeight = await page.evaluate(() => document.documentElement.scrollHeight);
+    const size = page.viewportSize();
+    if (size && docHeight > size.height) await page.setViewportSize({ width: size.width, height: docHeight });
     await page.screenshot({ path: `e2e/__shots__/${route.name}.png`, fullPage: true });
   });
 }

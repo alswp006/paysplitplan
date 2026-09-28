@@ -46,7 +46,7 @@ export function EmptyState({
       {description ? (
         <>
           <Spacing size={4} />
-          <Paragraph.Text typography="t6">{description}</Paragraph.Text>
+          <Paragraph.Text typography="t6" color="var(--adaptiveGrey600)">{description}</Paragraph.Text>
         </>
       ) : null}
       {action ? (

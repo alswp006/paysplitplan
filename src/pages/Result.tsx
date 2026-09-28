@@ -74,6 +74,7 @@ export default function Result() {
           fill
           icon={<ChartPie size={48} color="var(--adaptiveGrey500)" aria-hidden />}
           title="아직 계획이 없어요"
+          description="월급과 고정비를 넣으면 통장별 이체 금액을 계산해 드려요"
           action={
             <Button variant="fill" size="large" display="block" onClick={() => navigate("/plan")}>
               월급 계획 짜기

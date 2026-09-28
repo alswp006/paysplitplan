@@ -127,7 +127,6 @@ export default function Plan() {
         />
       }
     >
-      <Spacing size={16} />
       <TextField
         variant="box"
         label="월급"
@@ -196,7 +195,7 @@ export default function Plan() {
           고정비 추가
         </Button>
       </div>
-      <Spacing size={16} />
+      <Spacing size={24} />
       <div style={GUTTER}>
         <Paragraph.Text data-testid="available-preview" typography="t4">
           {formatAvailablePreview(salaryRaw, fixedTotal)}

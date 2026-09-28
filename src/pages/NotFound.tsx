@@ -1,8 +1,8 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Asset, Button } from "@toss/tds-mobile";
+import { Asset, Button, Top } from "@toss/tds-mobile";
 import { generateHapticFeedback } from "@apps-in-toss/web-framework";
-import { PageShell } from "@/components/PageShell";
+import { ScreenScaffold } from "@/components/ScreenScaffold";
 import { EmptyState } from "@/components/StateView";
 import { fireAndForget, logImpression } from "@/lib/analytics";
 
@@ -14,7 +14,7 @@ export default function NotFound() {
   }, []);
 
   return (
-    <PageShell>
+    <ScreenScaffold top={<Top title={<Top.TitleParagraph>월급쪼개기</Top.TitleParagraph>} />}>
       <EmptyState
         fill
         testId="not-found"
@@ -35,6 +35,6 @@ export default function NotFound() {
           </Button>
         }
       />
-    </PageShell>
+    </ScreenScaffold>
   );
 }
