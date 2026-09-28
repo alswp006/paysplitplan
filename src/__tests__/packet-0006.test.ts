@@ -117,8 +117,8 @@ describe("localStorage 저장소: 계획, 기록 읽기, 리뷰 1회", () => {
     });
     localStorage.setItem("paysplit:plan:v1", oldData);
 
-    const originalSetItem = localStorage.setItem;
-    localStorage.setItem = vi.fn(() => {
+    // jsdom의 localStorage는 `localStorage.setItem = fn` 대입이 메서드를 바꾸지 않고 "setItem" 키를 쓴다 — 프로토타입을 스파이한다.
+    const setItemSpy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
       throw new DOMException("QuotaExceededError", "QuotaExceededError");
     });
 
@@ -134,7 +134,7 @@ describe("localStorage 저장소: 계획, 기록 읽기, 리뷰 1회", () => {
     expect(result).toEqual({ ok: false, error: "QUOTA" });
     expect(localStorage.getItem("paysplit:plan:v1")).toBe(oldData);
 
-    localStorage.setItem = originalSetItem;
+    setItemSpy.mockRestore();
   });
 
   // ── AC-3: loadPlan with invalid data → null, remove key, no console.error ──

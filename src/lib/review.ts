@@ -1,5 +1,7 @@
-import { requestReview } from "@apps-in-toss/web-framework";
-import { getItem, removeItem, setItem } from "./storage";
+import { requestReview as sdkRequestReview } from "@apps-in-toss/web-framework";
+import { nowIso } from "./date";
+import { REVIEW_KEY } from "./storage";
+import type { ReviewPromptState } from "./types";
 
 /**
  * 앱 스토어 리뷰 요청 — **호출 시점이 전부다.**
@@ -13,8 +15,11 @@ import { getItem, removeItem, setItem } from "./storage";
  * (docs). 그래서 "떴는지"를 묻지 않고 "물어봤는지"만 기록한다.
  */
 
-/** 기본 가드 키. 앱 생애 1회 — 값이 있으면 다시 묻지 않는다. */
-const REVIEW_REQUESTED_KEY = "ait:review-requested";
+/**
+ * 기본 가드 키. 앱 생애 1회 — 값이 있으면 다시 묻지 않는다.
+ * 값은 ReviewPromptState JSON이고, 레거시 '1'(또는 그 밖의 어떤 값)도 요청 완료로 간주한다.
+ */
+const REVIEW_REQUESTED_KEY = REVIEW_KEY;
 
 /**
  * 리뷰 요청을 **앱 생애 1회만** 실제로 보낸다(localStorage 가드).
@@ -34,25 +39,33 @@ const REVIEW_REQUESTED_KEY = "ait:review-requested";
  * 부른 호출(결과 화면의 이중 렌더)이 둘 다 통과한다. 동기 중복은 막고, 실패만 되돌린다.
  */
 export function requestReviewOnce(key: string = REVIEW_REQUESTED_KEY): void {
-  if (getItem<boolean>(key) === true) return;
+  try {
+    if (localStorage.getItem(key) !== null) return;
+  } catch {
+    // 읽지 못하는 환경은 가드 없이 degrade.
+  }
 
   try {
-    setItem(key, true);
+    const at = nowIso();
+    const state: ReviewPromptState = { version: 1, id: "review-prompt", createdAt: at, updatedAt: at };
+    localStorage.setItem(key, JSON.stringify(state));
   } catch {
-    // storage.setItem은 가드가 없다(직접 localStorage에 쓴다) — 저장 불가 환경은 가드 없이 degrade.
+    // 저장 불가 환경(프라이빗 모드·용량 초과)은 가드 없이 degrade.
   }
 
   /** 호출이 실패했다 — 묻지 못했으므로 기회를 되돌려 준다. 지우기 실패는 무시한다(현상 유지). */
   const rollback = (): void => {
     try {
-      removeItem(key);
+      localStorage.removeItem(key);
     } catch {
       // 저장소 자체가 막힌 환경 — 되돌릴 수 없다. 던지지는 않는다.
     }
   };
 
   try {
-    const r: unknown = requestReview();
+    // 전역 requestReview가 주입돼 있으면 그것을, 아니면 SDK를 쓴다(테스트·호스트 주입용).
+    const injected = (globalThis as { requestReview?: () => unknown }).requestReview;
+    const r: unknown = typeof injected === "function" ? injected() : sdkRequestReview();
     // 반환이 `undefined`일 수 있다(문서) — thenable일 때만 거부를 지켜본다.
     if (r && typeof (r as Promise<void>).then === "function") {
       (r as Promise<void>).then(undefined, rollback);
