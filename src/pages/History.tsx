@@ -68,12 +68,17 @@ export default function History() {
       <Spacing size={24} />
       <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
         {monthsDesc.map((month) => {
-          const rate = store.records[month].rate;
+          const { rate, eligible, checked } = store.records[month];
+          const doneCount = eligible.filter((k) => checked[k]).length;
           return (
             <ListRow
               key={month}
               data-testid="month-row"
-              contents={<ListRow.Texts type="1RowTypeA" top={formatMonthLabel(month)} />}
+              contents={<ListRow.Texts
+                  type="2RowTypeA"
+                  top={formatMonthLabel(month)}
+                  bottom={`이체 ${eligible.length}개 중 ${doneCount}개 완료`}
+                />}
               right={
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Paragraph.Text typography="t5">{`${rate}%`}</Paragraph.Text>
