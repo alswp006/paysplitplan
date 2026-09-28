@@ -28,9 +28,11 @@ describe("검증 + 레거시 정규화 (validate.ts)", () => {
           name: "렌트",
           amount: 500000,
           createdAt: "2026-09-01T00:00:00.000Z",
+          updatedAt: "2026-09-01T00:00:00.000Z",
         },
       ],
-      ratios: [{ name: "저축", ratio: 100 }],
+      ratios: [50, 30, 10, 10],
+      presetId: "p532",
     };
 
     it("AC-1[P0]: should reject plan when salary is string", () => {
@@ -45,7 +47,7 @@ describe("검증 + 레거시 정규화 (validate.ts)", () => {
     it("AC-1[P0]: should reject plan when ratios sum is not 100", () => {
       const invalid = {
         ...validExampleA,
-        ratios: [{ name: "저축", ratio: 90 }], // sum = 90, not 100
+        ratios: [50, 30, 5, 5], // sum = 90, not 100
       };
       const normalized = normalizeLegacyPlan(invalid);
       expect(isValidPlan(normalized)).toBe(false);
@@ -78,12 +80,14 @@ describe("검증 + 레거시 정규화 (validate.ts)", () => {
             name: "렌트",
             amount: 500000,
             createdAt: "2026-09-01T00:00:00.000Z",
+            updatedAt: "2026-09-01T00:00:00.000Z",
           },
           {
             id: "fc_rent", // duplicate
             name: "유틸리티",
             amount: 100000,
             createdAt: "2026-09-01T00:00:00.000Z",
+            updatedAt: "2026-09-01T00:00:00.000Z",
           },
         ],
       };
@@ -111,9 +115,12 @@ describe("검증 + 레거시 정규화 (validate.ts)", () => {
           id: "fc_rent",
           name: "렌트",
           amount: 500000,
+          createdAt: "2026-09-01T00:00:00.000Z",
+          updatedAt: "2026-09-01T00:00:00.000Z",
         },
       ],
-      ratios: [{ name: "저축", ratio: 100 }],
+      ratios: [50, 30, 10, 10],
+      presetId: "p532",
     };
 
     it("AC-2[P0]: should reject draft when input is null", () => {
@@ -123,7 +130,7 @@ describe("검증 + 레거시 정규화 (validate.ts)", () => {
     it("AC-2[P0]: should reject draft when ratios sum is not 100", () => {
       const invalid = {
         ...validExampleDraft,
-        ratios: [{ name: "저축", ratio: 90 }],
+        ratios: [50, 30, 5, 5],
       };
       expect(isValidDraft(invalid as any)).toBe(false);
     });
@@ -152,6 +159,7 @@ describe("검증 + 레거시 정규화 (validate.ts)", () => {
             id: "fc_rent",
             name: "렌트",
             amount: 500000,
+            updatedAt: "2026-09-01T00:00:00.000Z",
             // createdAt missing
           },
         ],
@@ -167,11 +175,15 @@ describe("검증 + 레거시 정규화 (validate.ts)", () => {
             id: "fc_rent",
             name: "렌트",
             amount: 500000,
+            createdAt: "2026-09-01T00:00:00.000Z",
+            updatedAt: "2026-09-01T00:00:00.000Z",
           },
           {
             id: "fc_rent",
             name: "유틸리티",
             amount: 100000,
+            createdAt: "2026-09-01T00:00:00.000Z",
+            updatedAt: "2026-09-01T00:00:00.000Z",
           },
         ],
       };
@@ -188,6 +200,7 @@ describe("검증 + 레거시 정규화 (validate.ts)", () => {
     it("AC-3[P0]: should generate deterministic id from updatedAt", () => {
       const updatedAtStr = "2026-09-01T00:00:00.000Z";
       const legacy = {
+        version: 1,
         salary: 3000000,
         payday: 15,
         fixedCosts: [
@@ -198,7 +211,8 @@ describe("검증 + 레거시 정규화 (validate.ts)", () => {
             // createdAt will be added
           },
         ],
-        ratios: [{ name: "저축", ratio: 100 }],
+        ratios: [50, 30, 10, 10],
+        presetId: "p532",
         updatedAt: updatedAtStr,
         // createdAt missing
       };
@@ -220,6 +234,7 @@ describe("검증 + 레거시 정규화 (validate.ts)", () => {
     it("AC-3[P0]: should fill createdAt and fixedCost timestamps from updatedAt", () => {
       const updatedAtStr = "2026-09-01T00:00:00.000Z";
       const legacy = {
+        version: 1,
         salary: 3000000,
         payday: 15,
         fixedCosts: [
@@ -229,7 +244,8 @@ describe("검증 + 레거시 정규화 (validate.ts)", () => {
             amount: 500000,
           },
         ],
-        ratios: [{ name: "저축", ratio: 100 }],
+        ratios: [50, 30, 10, 10],
+        presetId: "p532",
         updatedAt: updatedAtStr,
       };
 
@@ -242,6 +258,7 @@ describe("검증 + 레거시 정규화 (validate.ts)", () => {
     it("AC-3[P0]: should not mutate input object", () => {
       const updatedAtStr = "2026-09-01T00:00:00.000Z";
       const legacy = {
+        version: 1,
         salary: 3000000,
         payday: 15,
         fixedCosts: [
@@ -251,7 +268,8 @@ describe("검증 + 레거시 정규화 (validate.ts)", () => {
             amount: 500000,
           },
         ],
-        ratios: [{ name: "저축", ratio: 100 }],
+        ratios: [50, 30, 10, 10],
+        presetId: "p532",
         updatedAt: updatedAtStr,
       };
 
@@ -312,7 +330,16 @@ describe("검증 + 레거시 정규화 (validate.ts)", () => {
       createdAt: "2026-09-01T00:00:00.000Z",
       updatedAt: "2026-09-01T00:00:00.000Z",
       planId: "plan-abc",
-      note: "test",
+      completedAt: null,
+      checked: { living: true, saving: false, emergency: false, leisure: false },
+      eligible: ["living", "saving", "emergency", "leisure"],
+      snapshot: {
+        salary: 3000000,
+        fixedTotal: 500000,
+        available: 2500000,
+        ratios: [50, 30, 10, 10],
+        amounts: { living: 1250000, saving: 750000, emergency: 250000, leisure: 250000 },
+      },
     };
 
     it("AC-5[P0]: should reject record when id is not string", () => {
@@ -374,13 +401,12 @@ describe("검증 + 레거시 정규화 (validate.ts)", () => {
   describe("Integration: normalized legacy plan passes validation", () => {
     it("should produce valid plan from minimal legacy input", () => {
       const minimal = {
+        version: 1,
         salary: 5000000,
         payday: 20,
         fixedCosts: [],
-        ratios: [
-          { name: "저축", ratio: 60 },
-          { name: "투자", ratio: 40 },
-        ],
+        ratios: [60, 20, 10, 10],
+        presetId: "p622",
         updatedAt: "2026-09-15T08:30:00.000Z",
       };
 
