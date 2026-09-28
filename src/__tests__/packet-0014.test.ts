@@ -111,8 +111,11 @@ function setClock(iso: string) {
   vi.setSystemTime(new Date(iso));
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   setClock(SEPT);
+  // afterEach의 vi.restoreAllMocks()가 factory에서 건 구현을 지우므로 매번 실제 함수로 다시 건다.
+  const actual = await vi.importActual<typeof import("@/lib/recordToggle")>("@/lib/recordToggle");
+  toggleSpy.mockImplementation(actual.toggleRecordItem);
   toggleSpy.mockClear();
 });
 
