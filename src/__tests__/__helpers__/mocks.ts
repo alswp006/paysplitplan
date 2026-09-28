@@ -373,7 +373,8 @@ export function mockTds() {
             { role: "navigation" },
             slot("upper", upper),
             subtitleTop != null ? h("p", { "data-slot": "subtitle-top" }, subtitleTop) : null,
-            title ? h("h1", null, title) : null,
+            // title 슬롯은 컨테이너다 — 제목 요소(h1)는 Top.TitleParagraph가 그린다(h1 안의 h1 방지).
+            title ? h("div", { "data-slot": "title" }, title) : null,
             subtitleBottom != null ? h("p", { "data-slot": "subtitle-bottom" }, subtitleBottom) : null,
             slot("right", right),
             slot("lower", lower),

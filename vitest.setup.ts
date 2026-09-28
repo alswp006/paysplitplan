@@ -30,6 +30,12 @@ if (typeof globalThis.requestAnimationFrame !== "function") {
   globalThis.cancelAnimationFrame = ((id: number) => clearTimeout(id)) as typeof globalThis.cancelAnimationFrame;
 }
 
+// ── 자식 프로세스 색상 끄기 ──
+// vitest는 워커 env에 FORCE_TTY(비-TTY여도 "")를 넣고, tinyrainbow는 값과 무관하게 **정의만 돼 있으면**
+// TTY로 본다. 테스트가 spawnSync로 띄운 `vitest run`이 이를 물려받으면 요약 줄이 ANSI 색으로 쪼개져
+// /Tests\s+\d+ passed/ 같은 출력 검사가 실패한다. 워커 자신의 색 설정은 이미 import 시점에 정해졌다.
+delete process.env.FORCE_TTY;
+
 // ── afterEach reset ──
 afterEach(() => {
   vi.clearAllMocks();

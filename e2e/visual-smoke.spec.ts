@@ -14,14 +14,29 @@ const ROUTES: { path: string; name: string }[] = [
   { path: "/", name: "home" },
   { path: "/plan", name: "plan" },
   { path: "/history", name: "history" },
-  // { path: "/result", name: "result" },   // ← 이 앱의 라우트를 추가
+  { path: "/result", name: "result" },
   // { path: "/settings", name: "settings" },
 ];
 
 /** 데이터가 필요한 화면용 localStorage 시드(앱에 맞게 채워라). 앱 스크립트보다 먼저 실행된다. */
 async function seed(page: Page): Promise<void> {
   await page.addInitScript(() => {
-    // window.localStorage.setItem("MY_STORAGE_KEY", JSON.stringify({ /* ... */ }));
+    // /result가 빈 상태가 아니라 실제 배분 결과를 그리도록 예시 계획(월급 300만 · 월세 60만 · 5:3:1:1)을 넣는다.
+    const ts = "2026-09-01T00:00:00.000Z";
+    window.localStorage.setItem(
+      "paysplit:plan:v1",
+      JSON.stringify({
+        version: 1,
+        id: "plan_smoke",
+        salary: 3000000,
+        fixedCosts: [{ id: "fc_rent", name: "월세", amount: 600000, createdAt: ts, updatedAt: ts }],
+        presetId: "p532",
+        ratios: [50, 30, 10, 10],
+        payday: 25,
+        createdAt: ts,
+        updatedAt: ts,
+      }),
+    );
   });
 }
 

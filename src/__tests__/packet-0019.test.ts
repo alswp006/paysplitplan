@@ -14,7 +14,7 @@ import { dirname, join, resolve } from "node:path";
 //       ② 설치 유도 문구  '설치하세요|다운로드|앱 받기'
 //       ③ 외부 분석 SDK  (react-ga · gtag · amplitude · mixpanel · firebase/analytics 등)
 //       ④ 구형 WebView 위험 API  'structuredClone|\.at\(|Object\.hasOwn|\.findLast\(|\.toSorted\(|randomUUID'
-//       ⑤ http(s) URL로의 window.open(...) · window.location.href = ...
+//       ⑤ http(s) URL로의 window.open 호출 · window.location.href 대입
 // src/__tests__/fullFlow.test.tsx
 //   - VITE_TOSS_AD_SLOT_ID·VITE_TOSS_AD_GROUP_ID를 빈 값으로 stub한 채
 //     / → /plan → /result 저장 → 홈 체크 4개 → /history → /does-not-exist → 홈을 끝까지 수행한다.

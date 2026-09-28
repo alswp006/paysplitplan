@@ -1,0 +1,77 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { screen, fireEvent, within } from "@testing-library/react";
+import { mockAll, mockNavigate, mockLogClick, mockShareApp } from "@/__tests__/__helpers__/mocks";
+import { renderWithRouter } from "@/__tests__/__helpers__/test-utils";
+import { savePlan } from "@/lib/storage";
+import type { PlanDraft } from "@/lib/types";
+
+mockAll();
+
+// 게이트 경계를 DOM에서 확인하려고 TossRewardAd를 표시용 래퍼로 바꾼다(mocks.ts의 목보다 나중에 등록).
+vi.doMock("@/components/TossRewardAd", async () => {
+  const R = await import("react");
+  return {
+    TossRewardAd: ({ children }: { children: React.ReactNode }) =>
+      R.createElement("div", { "data-testid": "reward-gate" }, children),
+  };
+});
+
+const { default: Result } = await import("@/pages/Result");
+
+const TS = "2026-09-01T00:00:00.000Z";
+const EXAMPLE_A: PlanDraft = {
+  salary: 3_000_000,
+  fixedCosts: [{ id: "fc_rent", name: "월세", amount: 600_000, createdAt: TS, updatedAt: TS }],
+  presetId: "p532",
+  ratios: [50, 30, 10, 10],
+  payday: 25,
+};
+
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-09-20T09:00:00+09:00"));
+});
+
+describe("Result 레이아웃", () => {
+  it("저장된 계획으로 들어오면 무료 층에 남는 돈과 배분 카드 4개가 보인다", async () => {
+    savePlan(EXAMPLE_A);
+    renderWithRouter(<Result />);
+
+    const free = screen.getByTestId("free-tier");
+    expect(within(free).getByTestId("available-hero")).toBeInTheDocument();
+    expect(await within(free).findByText("2,400,000원")).toBeInTheDocument();
+    expect(within(free).getAllByTestId("allocation-card")).toHaveLength(4);
+    expect(within(free).getByText("1,200,000원")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "홈에서 이체 체크하기" })).toBeInTheDocument();
+  });
+
+  it("무료 층은 광고 게이트 밖, 잠금 층은 게이트 안에만 있다", () => {
+    savePlan(EXAMPLE_A);
+    renderWithRouter(<Result />);
+
+    const gate = screen.getByTestId("reward-gate");
+    expect(gate.contains(screen.getByTestId("free-tier"))).toBe(false);
+    const locked = within(gate).getByTestId("locked-tier");
+    expect(within(locked).getByTestId("bracket-compare")).toBeInTheDocument();
+    expect(within(locked).getByTestId("trend-block")).toBeInTheDocument();
+  });
+
+  it("공유 버튼은 result_share 로그와 shareApp을 1회씩 부른다", () => {
+    savePlan(EXAMPLE_A);
+    renderWithRouter(<Result />);
+
+    fireEvent.click(screen.getByRole("button", { name: "친구에게 공유하기" }));
+    expect(mockLogClick).toHaveBeenCalledWith("result_share");
+    expect(mockShareApp).toHaveBeenCalledTimes(1);
+  });
+
+  it("계획이 없으면 빈 상태와 '월급 계획 짜기'를 보이고 결과 층은 없다", () => {
+    renderWithRouter(<Result />);
+
+    expect(screen.getByText("아직 계획이 없어요")).toBeInTheDocument();
+    expect(screen.queryByTestId("free-tier")).toBeNull();
+    expect(screen.queryByTestId("locked-tier")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "월급 계획 짜기" }));
+    expect(mockNavigate).toHaveBeenCalledWith("/plan");
+  });
+});
