@@ -27,7 +27,7 @@ describe("기록 토글 (toggleRecordItem)", () => {
       id,
       salary,
       fixedCosts: [],
-      presetId: "default",
+      presetId: "custom",
       ratios,
       payday: 25,
       createdAt: "2026-09-01T00:00:00.000Z",
