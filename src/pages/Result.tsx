@@ -104,7 +104,7 @@ export default function Result() {
         <SummaryHero
           testId="available-hero"
           label="남는 돈"
-          value={<CountUp value={available} unit="원" typography="t1" />}
+          value={<CountUp value={available} unit="원" typography="t1" durationMs={0} />}
           caption={`월급 ${formatWon(draft.salary)} − 고정비 ${formatWon(fixedTotal)}`}
         />
         <Spacing size={16} />

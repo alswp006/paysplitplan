@@ -25,7 +25,7 @@ export function CountUp({
   durationMs?: number;
   testId?: string;
 }) {
-  const [display, setDisplay] = useState(0);
+  const [display, setDisplay] = useState(durationMs <= 0 ? value : 0);
   const raf = useRef<number | null>(null);
 
   useEffect(() => {
