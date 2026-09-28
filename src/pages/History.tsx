@@ -1,14 +1,100 @@
-// @ai-factory:placeholder
-// 배선 선행(wiring-first)이 깐 자리 페이지다 — App.tsx에 `/history`로 이미 연결돼 있다.
-// 이 화면을 담당하는 패킷은 이 파일을 **통째로 교체**하라(위 마커 주석 포함 — 마커가 남으면 산출물로 인정되지 않는다).
-import { PageShell } from "../components/PageShell";
+import { useState } from 'react';
+import { Top, ListRow, Badge, Paragraph, Button, Spacing, Asset } from '@toss/tds-mobile';
+import { useNavigate } from 'react-router-dom';
+import { ScreenScaffold } from '@/components/ScreenScaffold';
+import { SummaryHero } from '@/components/SummaryHero';
+import { CountUp } from '@/components/CountUp';
+import { MiniBar } from '@/components/MiniBar';
+import { AdSlot } from '@/components/AdSlot';
+import { EmptyState } from '@/components/StateView';
+import { FloatingTabBar } from '@/components/FloatingTabBar';
+import { logClick } from '@/lib/analytics';
+import { getToday, monthKey } from '@/lib/date';
+import { formatMonthLabel } from '@/lib/format';
+import { loadRecords } from '@/lib/storage';
+
+const TABS = [
+  { label: '홈', path: '/' },
+  { label: '기록', path: '/history' },
+];
+
 export default function History() {
+  const navigate = useNavigate();
+  // 읽기 전용 — 마운트 때 1회만 읽는다. 손상된 레코드는 loadRecords가 걸러 준다.
+  const [store] = useState(() => loadRecords());
+
+  const top = <Top title={<Top.TitleParagraph>이행 기록</Top.TitleParagraph>} />;
+  const monthsDesc = Object.keys(store.records).sort().reverse();
+
+  if (monthsDesc.length === 0) {
+    return (
+      <ScreenScaffold top={top} bottom={<FloatingTabBar items={TABS} />}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+          <Spacing size={48} />
+          <Asset.ContentIcon name="icon-plus-small-mono" alt="" style={{ width: 48, height: 48 }} />
+          <Spacing size={16} />
+          <Paragraph.Text typography="t3">아직 기록이 없어요</Paragraph.Text>
+          <Spacing size={24} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignSelf: 'stretch' }}>
+            <Button
+              variant="fill"
+              size="large"
+              display="block"
+              onClick={() => {
+                logClick('history_go_check');
+                navigate('/');
+              }}
+            >
+              이번 달 체크하러 가기
+            </Button>
+          </div>
+          <Spacing size={80} />
+        </div>
+      </ScreenScaffold>
+    );
+  }
+
+  const thisMonth = store.records[monthKey(getToday())];
+  const thisRate = thisMonth ? thisMonth.rate : 0;
+
   return (
-    <PageShell>
-      <main data-testid="placeholder-history">
-        <h1>이행 기록 데이터 화면</h1>
-        <p>이 화면은 준비 중이에요.</p>
-      </main>
-    </PageShell>
+    <ScreenScaffold top={top} bottom={<FloatingTabBar items={TABS} />}>
+      <Spacing size={16} />
+      <SummaryHero
+        testId="history-hero"
+        label="이번 달 이행률"
+        value={<CountUp value={thisRate} unit="%" />}
+        caption={thisMonth ? undefined : '이번 달은 아직 체크 전이에요'}
+      />
+      <Spacing size={24} />
+      <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+        {monthsDesc.map((month) => {
+          const rate = store.records[month].rate;
+          return (
+            <ListRow
+              key={month}
+              data-testid="month-row"
+              contents={<ListRow.Texts type="1RowTypeA" top={formatMonthLabel(month)} />}
+              right={
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Paragraph.Text typography="t5">{`${rate}%`}</Paragraph.Text>
+                  <div style={{ width: 64 }}>
+                    <MiniBar ratio={rate / 100} />
+                  </div>
+                  {rate === 100 && (
+                    <Badge size="small" variant="weak" color="green">
+                      완료
+                    </Badge>
+                  )}
+                </div>
+              }
+            />
+          );
+        })}
+      </ul>
+      <Spacing size={16} />
+      <AdSlot adGroupId={import.meta.env.VITE_TOSS_AD_GROUP_ID ?? ''} />
+      <Spacing size={80} />
+    </ScreenScaffold>
   );
 }
