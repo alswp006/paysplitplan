@@ -615,8 +615,9 @@ export function mockAnalytics() {
     // PageShell이 부르는 훅. 목에서는 아무것도 하지 않는다(렌더만 살리면 된다).
     useScreenLog: vi.fn(),
   }));
-  vi.mock("@/lib/review", () => ({ requestReviewOnce: mockRequestReviewOnce }));
-  vi.mock("@/lib/share", () => ({ shareApp: mockShareApp }));
+  // review·share도 doMock — 호이스팅된 vi.mock이 테스트 파일 자신의 review/share 목을 덮어쓰지 않게.
+  vi.doMock("@/lib/review", () => ({ requestReviewOnce: mockRequestReviewOnce }));
+  vi.doMock("@/lib/share", () => ({ shareApp: mockShareApp }));
 }
 
 // ── Toss Reward Ad Component ──
