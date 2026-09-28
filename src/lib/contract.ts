@@ -5,6 +5,8 @@
  * 타입을 그대로 가정해도 된다. 추측이 어긋나 병합에서 무너지는 것을 막기 위한 파일이다.
  */
 
+import type { SalaryPlan as Plan, MonthRecord as Record, ReviewPromptState as Review } from "./types";
+
 /** (구현: 패킷 0001) */
 export type RouteState = { current: 'home' | 'plan' | 'result' | 'history' | 'notfound'; planId?: string; recordDate?: string };
 
