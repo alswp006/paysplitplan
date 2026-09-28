@@ -1,0 +1,466 @@
+# @apps-in-toss/web-framework — 실제 SDK API 레퍼런스
+
+이 파일은 `@apps-in-toss/web-framework@2.4.x`의 공개 API 레퍼런스입니다.
+여기에 없는 API는 SDK에 없습니다. 상상하지 말 것.
+
+## 출처 표기 — 항목마다 근거가 다르다
+
+대부분의 항목은 **설치본 `.d.ts`에서 검증**됐다. 그러나 일부 항목(`Analytics` 3종 · `share` ·
+`getTossShareLink` · `requestReview`)은 **앱인토스 개발자센터 문서**가 출처이고 `.d.ts` 대조를
+거치지 않았다 — 해당 항목에 `> 출처:` 줄로 명시한다.
+
+왜 굳이 구분하나: 이 파일은 규칙서가 **"여기 없으면 존재하지 않는 것"**이라고 가르치는 존재
+신탁이다. 신탁이 자기 근거를 실제보다 강하게 말하면 그 차이만큼이 사각지대가 된다. 실제로
+이 파일의 예전 판은 머리말에서 '.d.ts 검증'을 주장하면서 **문서 어디에도 없는**
+`share({ title, description, url })`를 싣고 있었다(2026-09-20 문서 대조로 정정).
+
+패키지 구조:
+- `@apps-in-toss/web-framework` = `@apps-in-toss/web-bridge` + `@apps-in-toss/web-analytics` re-export
+- 실제 import 경로는 `@apps-in-toss/web-framework` 그대로 사용
+
+```typescript
+import { Storage, Analytics, grantPromotionReward } from '@apps-in-toss/web-framework';
+```
+
+---
+
+## 절대 원칙
+
+1. **React 훅(`use*`)은 SDK에 없다.** 템플릿이 제공하는 `useTossLogin`, `useTossAd`, `useTossPayment`는 프로젝트 로컬 래퍼이며, 이 가이드에서 권장하지 않음. 직접 imperative API를 호출하라.
+2. **광고, 결제, 위치 등은 imperative 함수 + 이벤트 콜백 구조**이다. Promise-only가 아닌 경우가 많음.
+3. **로그인 훅은 없다.** 토스 앱 자체가 사용자 세션을 제공하므로 별도 login 호출 불필요. 통합 여부만 `getIsTossLoginIntegratedService`로 확인.
+4. **분석/로깅은 `Analytics` 사용.** 외부 툴(GA, Amplitude) 금지.
+
+---
+
+## 1. 저장소 (Storage)
+
+네이티브 저장소. localStorage보다 persistence 보장이 강함.
+
+```typescript
+import { Storage } from '@apps-in-toss/web-framework';
+
+await Storage.setItem('my-key', 'value');           // 저장
+const value = await Storage.getItem('my-key');       // 조회: string | null
+await Storage.removeItem('my-key');                  // 삭제
+await Storage.clearItems();                          // 전체 초기화
+```
+
+**주의**: value는 `string`만. 객체는 `JSON.stringify` 필요.
+
+---
+
+## 2. 인앱결제 (IAP)
+
+### 2.1 1회성 결제
+
+```typescript
+// ⚠️ IAP는 최상위 export가 아니라 IAP 네임스페이스 아래에 있다(.d.ts 검증).
+//    import { createOneTimePurchaseOrder } ... → 존재하지 않음(빌드 에러).
+import { IAP } from '@apps-in-toss/web-framework';
+
+// 반환값은 cleanup 함수 → 언마운트/완료 시 반드시 호출해 리소스 해제
+const cleanup = IAP.createOneTimePurchaseOrder({
+  options: {
+    sku: import.meta.env.VITE_TOSS_IAP_SKU,   // 콘솔 발급값 — 리터럴로 박지 마라
+    processProductGrant: async ({ orderId }) => {
+      // 백엔드에 orderId 전송 → 상품 지급 처리
+      // 반환: true (성공) | false (실패)
+      return true;
+    },
+  },
+  onEvent: (event) => {
+    // event.type === 'success', event.data = IapCreateOneTimePurchaseOrderResult
+    console.log(event.data.orderId, event.data.amount);
+  },
+  onError: (error) => {
+    console.error(error);
+  },
+});
+// cleanup();  // 결제 흐름 종료 시
+
+// React 앱은 이 imperative API를 직접 쓰지 말고 템플릿의 src/components/TossPurchase.tsx
+// (WebView-밖 throw 가드 + cleanup 관리 래퍼)를 사용하는 것을 권장.
+```
+
+**IapCreateOneTimePurchaseOrderResult 필드**:
+- `orderId`, `displayName`, `displayAmount` (예: "1,000원"), `amount` (숫자), `currency` (ISO 4217), `fraction` (소수점 자리수), `miniAppIconUrl`
+
+### 2.2 구독 결제
+
+```typescript
+import { IAP } from '@apps-in-toss/web-framework';
+
+const cleanup = IAP.createSubscriptionPurchaseOrder({
+  options: {
+    sku: 'subscription-id',
+    offerId: import.meta.env.VITE_TOSS_IAP_OFFER_ID,   // optional · 콘솔 발급값 — null이면 기본 가격
+    processProductGrant: async ({ orderId, subscriptionId }) => true,
+  },
+  onEvent: (event) => { /* SubscriptionSuccessEvent (event.data) */ },
+  onError: (error) => { /* ... */ },
+});
+// cleanup();  // 종료 시
+```
+
+### 2.3 Offer 타입
+
+- `'FREE_TRIAL'` — 무료 체험 제공
+- `'NEW_SUBSCRIPTION'` — 신규 구독자 할인
+- `'RETURNING'` — 복귀자 할인
+
+---
+
+## 3. 광고 (Ad)
+
+SDK는 **두 종류**의 광고 API를 제공. React 컴포넌트가 아닌 **imperative 함수**.
+
+### 3.1 배너 광고 (TossAds)
+
+```typescript
+import { TossAds } from '@apps-in-toss/web-framework';
+
+// 1) 초기화 (앱 라이프사이클당 한 번)
+if (TossAds.initialize.isSupported()) {
+  TossAds.initialize({});  // InitializeOptions: { callbacks?: { onInitialized, onInitializationFailed } }
+}
+
+// 2) DOM 노드에 배너 부착 — adGroupId는 앱인토스 콘솔 발급
+const targetEl = document.getElementById('ad-slot');
+if (TossAds.attachBanner.isSupported() && targetEl) {
+  const result = TossAds.attachBanner('banner-ad-group-id', targetEl, {
+    theme: 'auto',          // 'auto' | 'light' | 'dark'
+    variant: 'card',        // 'card' | 'expanded'
+    tone: 'blackAndWhite',  // 'blackAndWhite' | 'grey'
+    callbacks: {
+      onAdRendered: (p) => { /* p: { slotId, adGroupId, adMetadata } */ },
+      onAdClicked: (p) => { /* ... */ },
+      onAdFailedToRender: (p) => { /* p.error: { code, message } */ },
+      onNoFill: (p) => { /* ... */ },
+    },
+  });
+
+  // 3) 컴포넌트 언마운트 시
+  // result.destroy();
+}
+
+// (legacy) loadAdMob / showAdMob / isAdMobLoaded 는 SDK에 존재하지 않음 — 사용 금지
+```
+
+### 3.2 전면 광고 / 리워드 광고 (FullScreen Ad)
+
+```typescript
+import { loadFullScreenAd, showFullScreenAd } from '@apps-in-toss/web-framework';
+
+// 로드
+loadFullScreenAd({
+  slotId,   // = import.meta.env.VITE_TOSS_AD_SLOT_ID (콘솔 발급값 — 리터럴로 박지 마라)
+  onEvent: (event) => { /* LoadFullScreenAdEvent — loaded 등 */ },
+  onError: (error) => { /* ... */ },
+});
+
+// 표시 (시청 완료 시 리워드 지급 기준점)
+showFullScreenAd({
+  slotId,   // = import.meta.env.VITE_TOSS_AD_SLOT_ID (콘솔 발급값 — 리터럴로 박지 마라)
+  onEvent: (event) => {
+    // event.type이 'rewarded' | 'dismissed' 등으로 구분됨
+    // 시청 완료 후 비즈니스 로직 실행
+  },
+  onError: (error) => { /* ... */ },
+});
+```
+
+**주의 사항**:
+- 광고 API는 **앱인토스 WebView 런타임에서만 동작**. 로컬 브라우저 개발 시 `onError`로 떨어질 수 있음 → fallback 필요
+- React 래퍼(`TossRewardAd`, `AdSlot`)는 **SDK에 없음**. 프로젝트가 필요하면 위 imperative API를 감싸서 직접 만들어야 함
+
+---
+
+## 4. 포인트 지급 (Promotion)
+
+```typescript
+import { grantPromotionReward } from '@apps-in-toss/web-framework';
+
+await grantPromotionReward({
+  promotionCode: 'CONSOLE_ISSUED_CODE',   // 앱인토스 콘솔에서 발급
+  amount: 1000,                            // 1인당 최대 5,000원 — 초과 시 호출 금지
+});
+```
+
+**정책**:
+- 1인당 누적 5,000원 한도 (amount > 5000 호출 금지)
+- promotionCode는 반드시 앱인토스 콘솔에서 발급받은 것 사용
+- 용도: 첫 사용 보상, 친구 초대 리워드, 이벤트 참여 보상
+
+---
+
+## 5. 로그인 상태 확인 / 사용자 식별키(anonKey)
+
+**SDK에 로그인 훅은 없다.** 토스 앱이 이미 사용자 세션을 제공하므로 별도 login 불필요.
+앱인토스 미니앱은 기본적으로 **익명 또는 토스 통합 세션** 중 하나.
+
+```typescript
+import { getIsTossLoginIntegratedService } from '@apps-in-toss/web-framework';
+
+const isIntegrated = await getIsTossLoginIntegratedService();
+// true: 토스 로그인 통합됨, false: 익명 서비스
+```
+
+### 5.1 getAnonymousKey — 동의 화면 없이 사용자를 식별한다
+
+출처: 앱인토스 개발자센터 API 문서 `api/auth`(설치본 `.d.ts` 재확인 필요 — 이 항목만 문서 근거다).
+로그인·동의 절차 **없이** 미니앱 안에서 바로 발급되고, 미니앱마다 고유하며 같은 사용자는 항상
+같은 값을 받는다. 규칙서(`toss-mini-app.md` Login 절)가 "토스 로그인 대신 이걸 써라"라고 가리키는 대상.
+
+```typescript
+import { getAnonymousKey } from '@apps-in-toss/web-framework';
+
+// declare function getAnonymousKey(): Promise<{ hash: string; type: 'HASH' } | 'ERROR' | undefined>
+// 파라미터 없음 · 권한 불필요
+const result = await getAnonymousKey();
+if (result === undefined) return;      // 앱 버전이 최소 지원 버전보다 낮음
+if (result === 'ERROR') return;        // 알 수 없는 오류
+console.log(result.hash);              // 사용자 식별자
+```
+
+**반환 3분기를 전부 처리하라.** `hash`를 바로 쓰기 전에 타입 가드가 필수다
+(`undefined`/`'ERROR'`가 문자열/undefined라 `.hash` 접근이 런타임에 터진다).
+
+`getUserKeyForGame()`은 **deprecated 별칭**이다(문서: "타입과 동작이 동일합니다").
+비게임/게임 구분이 아니라 구버전/신버전이므로 **새 코드는 `getAnonymousKey`만 쓴다.**
+
+토스 로그인(`appLogin`) 연동은 본인 확인·중복가입 방지처럼 앱인토스 **밖** 계정과 같은 사람인지
+연결해야 할 때만 필요하다. 그 외에는 붙이지 마라 — 동의 화면 이탈률이 절반에 가까운 미니앱도 있었다.
+
+---
+
+## 6. 기타 Bridge API
+
+### 햅틱 피드백
+```typescript
+import { generateHapticFeedback } from '@apps-in-toss/web-framework';
+
+generateHapticFeedback({ type: 'tickWeak' });     // 약한 진동 (Toggle/Chip)
+generateHapticFeedback({ type: 'success' });       // 성공 진동 (주요 CTA)
+// 기타: 'selection', 'impact', 'warning', 'error'
+```
+
+### 공유 — `share` / `getTossShareLink`
+> 출처: **앱인토스 개발자센터 문서**(api/navigation/share·getTossShareLink). 이 항목은 설치본
+> `.d.ts` 대조를 거치지 않았다(머리말의 '.d.ts 검증' 범위 밖 — 맨 위 '출처 표기' 절 참고).
+>
+> ⚠️ 이 파일의 예전 판은 `share({ title, description, url })`로 적고 있었다. **문서 어디에도
+> 없는 모양이고, 이 배치에서 정정했다.** 파라미터는 `message` 하나다. 옛 모양을 기억에서
+> 되살리지 마라 — 여기 적힌 것이 존재 신탁이다.
+
+```typescript
+import { share, getTossShareLink } from '@apps-in-toss/web-framework';
+
+declare function share(message: { message: string }): Promise<void>;
+declare function getTossShareLink(path: string, ogImageUrl?: string): Promise<string>;
+```
+
+- `share`는 **시스템 공유 시트에 텍스트 한 덩어리**를 넘긴다. 링크를 함께 보내려면 문자열 안에 넣는다.
+  사용자가 취소해도 reject되지 않는다.
+- `getTossShareLink(path)`는 미니앱 **내부 경로**로 들어오는 인앱 링크를 만든다. 두 번째 인자
+  `ogImageUrl`은 카카오톡·문자 등 **메신저 링크 미리보기**에 쓰인다(선택).
+- 둘 다 권한 불필요.
+
+```typescript
+const link = await getTossShareLink('/result');
+await share({ message: `내 결과를 확인해보세요\n${link}` });
+```
+
+**단, 앱 코드에서는 직접 부르지 말고 `src/lib/share.ts`의 `shareApp()`을 써라**(아래 '래퍼 우선' 절).
+브릿지 없는 환경에서 `getTossShareLink`는 **동기 throw일 수도, 거부일 수도** 있는데 래퍼가 둘 다
+잡고 **링크 없이 공유를 내보낸다** — 링크 없는 공유가 공유 없음보다 낫다. 직접 부르면 그 throw가
+핸들러를 탈출한다.
+
+### 클립보드
+```typescript
+import { setClipboardText, getClipboardText } from '@apps-in-toss/web-framework';
+
+await setClipboardText({ text: '복사할 텍스트' });
+const text = await getClipboardText();
+```
+
+### 리뷰 요청 — `requestReview`
+> 출처: **앱인토스 개발자센터 문서**(api/navigation/requestReview). `.d.ts` 대조 안 함.
+
+```typescript
+import { requestReview } from '@apps-in-toss/web-framework';
+
+declare function requestReview(): Promise<void>;   // 파라미터 없음 · 권한 불필요
+```
+
+- **표시를 보장하지 않는다.** 다이얼로그를 실제로 띄울지는 OS(iOS StoreKit / Android Play
+  In-App Review)가 정하고, 둘 다 단기간 반복 노출을 내부적으로 스로틀한다. resolve됐다고
+  사용자가 봤다는 뜻이 아니므로 **반환값으로 분기하지 마라.**
+- 그래서 호출 **시점**이 전부다. 앱 코드에서는 `src/lib/review.ts`의 `requestReviewOnce()`를
+  핵심 태스크 완료 직후에 부른다(아래 '래퍼 우선' 절).
+
+### 네트워크 / 플랫폼 / 버전
+```typescript
+import {
+  getNetworkStatus,    // { connected: boolean, type: 'wifi' | 'cellular' | ... }
+  getPlatformOS,        // 'ios' | 'android'
+  getTossAppVersion,    // '5.xxx.x'
+  getOperationalEnvironment, // 'development' | 'production'
+} from '@apps-in-toss/web-framework';
+```
+
+### 권한
+```typescript
+import { getPermission } from '@apps-in-toss/web-framework';
+
+const { granted } = await getPermission({ type: 'camera' });
+```
+
+### 카메라 / 앨범
+```typescript
+import { openCamera, fetchAlbumPhotos } from '@apps-in-toss/web-framework';
+
+openCamera({
+  onEvent: (event) => { /* 촬영 결과 */ },
+  onError: (error) => { /* ... */ },
+});
+```
+
+### 위치
+```typescript
+import { getCurrentLocation } from '@apps-in-toss/web-framework';
+
+getCurrentLocation({
+  onEvent: ({ latitude, longitude }) => { /* ... */ },
+  onError: (error) => { /* ... */ },
+});
+```
+
+### 외부 URL / 스킴
+```typescript
+import { openURL, getSchemeUri } from '@apps-in-toss/web-framework';
+
+await openURL({ url: 'https://...' });          // 외부 브라우저 오픈 (단, 앱인토스 리뷰 정책 상 외부 URL 이동 제한)
+const scheme = await getSchemeUri();             // intoss://{appName}
+```
+
+### 연락처 (바이럴)
+```typescript
+import { contactsViral } from '@apps-in-toss/web-framework';
+
+contactsViral({ /* 옵션 */ });   // 친구 초대 플로우
+```
+
+### 이미지 저장
+```typescript
+import { saveBase64Data } from '@apps-in-toss/web-framework';
+
+await saveBase64Data({ data: 'base64string', filename: 'share.png' });
+```
+
+---
+
+## 7. 분석 / 로깅 (Analytics)
+> 출처: **앱인토스 개발자센터 문서**(api/analytics/screen·click·impression). `.d.ts` 대조 안 함.
+
+외부 로깅 툴(GA, Amplitude) 사용 금지. 반드시 SDK의 Analytics 사용. **권한 불필요.**
+
+```typescript
+import { Analytics } from '@apps-in-toss/web-framework';
+
+type Primitive = string | number | boolean | null;
+type LoggerParams = { log_name?: string } & { [key: string]: Primitive };
+
+declare const Analytics: {
+  screen:     (params?: LoggerParams) => Promise<void> | undefined;
+  click:      (params?: LoggerParams) => Promise<void> | undefined;
+  impression: (params?: LoggerParams) => Promise<void> | undefined;
+};
+```
+
+셋은 **`Analytics` 네임스페이스의 멤버**다. `import { screen }`처럼 단독으로 가져올 수 없다.
+값은 `Primitive`만 실린다 — 객체·배열·`undefined`를 필드로 넘기지 마라.
+
+**반환이 `undefined`일 수 있다.** `Promise<void> | undefined`이므로 `await`만 하고 반환값으로
+분기하지 마라(`(await Analytics.click(...)) === undefined`가 실패를 뜻하지 않는다).
+
+호출 시점이 곧 데이터 품질이다:
+
+| 함수 | 부르는 시점 | 틀리면 |
+|---|---|---|
+| `screen` | 페이지 **마운트** 시 | — |
+| `impression` | 요소가 **뷰포트에 들어온** 시점 | 마운트 즉시 부르면 **사용자가 보지 못한 것도 집계**된다 |
+| `click` | **이벤트 핸들러 안** | — |
+
+**`log_name`을 일관되게 유지하라.** 이벤트명이 밤마다 바뀌면 대시보드에서 히스토리 연속성이
+끊겨 퍼널 비교가 불가능해진다(계측의 목적 자체가 사라진다).
+
+### `eventLog` — 존재하지만 이 템플릿에서는 쓰지 마라
+> 출처: **앱인토스 개발자센터 문서**. `.d.ts` 대조 안 함. 그리고 **`log_type` 열거는 확인하지
+> 못했다** — 아래 9종은 문서에서 본 것을 옮긴 것이고 설치본과 대조되지 않았다. 체류 로그를
+> `eventLog`로 옮기자는 판단을 내릴 때 이 줄을 근거로 쓰지 마라(신탁이 자기 근거를 실제보다
+> 강하게 말하면 그 차이가 사각지대다 — 맨 위 '출처 표기' 절).
+
+SDK에 `eventLog({ log_name, log_type, params })`도 있다(문서상 `log_type` 9종: debug·info·warn·
+error·event·screen·impression·click·popup). 그러나 **템플릿 테스트 목에 없다** —
+`src/__tests__/__helpers__/mocks.ts`의 `mockAppsInToss()`가 내보내지 않으므로 호출하면 목을 쓰는
+테스트에서 `undefined`가 되어 터진다. 계측은 `Analytics` 3종으로 충분하다.
+
+## 7.1 래퍼 우선 — 앱 코드는 SDK를 직접 부르지 않는다
+
+계측·리뷰·공유 세 가지는 템플릿이 **얇은 래퍼**를 제공한다. 앱 코드는 래퍼만 부른다.
+
+```typescript
+import { logClick, logImpression } from '@/lib/analytics';
+import { requestReviewOnce } from '@/lib/review';
+import { shareApp } from '@/lib/share';
+```
+
+| 래퍼 | 하는 일 |
+|---|---|
+| `logScreen(page, extra?)` / `logClick(name, extra?)` / `logImpression(name, extra?)` | `Analytics` 3종 호출 |
+| `useScreenLog(page)` | 마운트 시 화면 로그 + 3초 이상 체류 시 체류 로그(각 1회) |
+| `requestReviewOnce(key?)` | 앱 생애 1회만 실제 호출(localStorage 가드) |
+| `shareApp({ message, path?, ogImageUrl? })` | `getTossShareLink` + `share` 조합 |
+
+`ogImageUrl`(메신저 링크 미리보기 이미지)을 생략하면 빌드 시 주입된 `VITE_SHARE_OG_URL`을 쓰고,
+그것도 없으면 **붙이지 않는다**(토스 기본 미리보기). 운영자가 값을 넣는 자리는 앱 레포 루트의
+`.env`이고, 빈 값의 본보기가 `.env.example`에 있다 — Vite는 빌드 시점에 치환하므로 **런타임에
+바꿀 수 없다.** 값이 없다고 URL을 지어내지 마라(깨진 미리보기가 기본 미리보기보다 나쁘다).
+
+왜 직접 부르지 않나 — 셋 다 **절대 throw하지 않는다**는 계약을 래퍼가 진다. SDK는 WebView 밖
+(로컬 브라우저·검수자 PC·jsdom)에서 **예외를 던지므로**(§ '절대 원칙' 및 규칙서 참고), 가드 없이
+부르면 그 throw가 render/effect를 탈출해 **흰 화면**이 된다. 로그 한 줄, 공유 버튼 하나 때문에
+앱이 죽는 것은 어떤 경우에도 남는 장사가 아니다. 래퍼는 또 `getTossShareLink` 실패를 흡수해
+링크 없는 공유로 degrade하고, 리뷰 요청의 '앱 생애 1회' 가드를 갖는다.
+
+---
+
+## 8. 게임 센터 (게임 앱 전용)
+
+```typescript
+import {
+  getGameCenterGameProfile,
+  submitGameCenterLeaderBoardScore,
+} from '@apps-in-toss/web-framework';
+```
+게임 앱이 아니면 사용 금지.
+
+---
+
+## SDK에 "없는 것" (쓰려고 하지 말 것)
+
+❌ `useTossLogin`, `useTossAd`, `useTossPayment` — React 훅 형태 API 일체 없음
+❌ `TossRewardAd`, `AdSlot` — React 컴포넌트 형태 광고 래퍼 없음 (직접 만들어야 함)
+❌ `window.Toss.xxx` 글로벌 — 구식 WebView 브릿지 패턴, 현재 SDK에서 사용 금지
+
+---
+
+## 작성 원칙 (spec/task/coding 에이전트에게)
+
+1. 이 파일에 있는 API만 사용한다고 가정하고 스펙 작성
+2. React 래퍼가 필요한 경우 "프로젝트 로컬 컴포넌트로 구현" 명시
+3. 광고 시나리오는 `loadFullScreenAd` + `showFullScreenAd` 조합, Promise 아님
+4. 결제 시나리오는 `createOneTimePurchaseOrder` + `processProductGrant` 콜백 구조
+5. 외부 분석 툴 언급 금지 — Analytics로만
+6. "이 API 없음" 정보가 중요할 때는 위 "없는 것" 목록 참조
