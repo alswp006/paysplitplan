@@ -2,9 +2,10 @@
 
 // ── Core domain types ──
 
-export type CategoryKey = "savings" | "expense" | "fun";
+export type CategoryKey = "living" | "saving" | "emergency" | "leisure";
 
-export type Ratios = globalThis.Record<CategoryKey, number>;
+// CATEGORY_ORDER 순서(생활비·저축·비상금·여가)의 비율 4개, 합계 100
+export type Ratios = [number, number, number, number];
 
 export type PresetId = string;
 
