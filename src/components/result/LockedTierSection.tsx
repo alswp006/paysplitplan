@@ -18,7 +18,7 @@ export function LockedTierSection({
   const rows = getBracketScenarios(plan);
   const trend = useMemo(() => getTrend(getToday(), loadRecords()), []);
   const maxSaving = Math.max(1, ...rows.map((r) => r.saving));
-  const chartData = trend.points.flatMap((p) => (p.rate === null ? [] : [p.rate]));
+  const chartData = trend.points.map((p) => p.rate);
 
   const logged = useRef(false);
   useEffect(() => {

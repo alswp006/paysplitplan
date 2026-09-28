@@ -10,24 +10,36 @@ export function Sparkline({
   height = 64,
   testId,
 }: {
-  data: number[];
+  /** null은 값 없는 자리 — 선을 끊고 바닥에 빈 점으로 표시한다(자리는 유지). */
+  data: (number | null)[];
   width?: number;
   height?: number;
   testId?: string;
 }) {
   if (!data || data.length < 2) return null;
 
-  const min = Math.min(...data);
-  const max = Math.max(...data);
+  const values = data.flatMap((v) => (v === null ? [] : [v]));
+  const min = values.length > 0 ? Math.min(...values) : 0;
+  const max = values.length > 0 ? Math.max(...values) : 0;
   const span = max - min || 1;
   const stepX = width / (data.length - 1);
-  const points = data.map((v, i) => {
-    const x = i * stepX;
-    const y = height - ((v - min) / span) * height;
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  });
-  const line = points.map((p, i) => `${i === 0 ? "M" : "L"}${p}`).join(" ");
-  const area = `${line} L${width},${height} L0,${height} Z`;
+  const pos = data.map((v, i) => ({
+    x: i * stepX,
+    y: v === null ? height : height - ((v - min) / span) * height,
+    empty: v === null,
+  }));
+
+  // 값이 이어지는 구간마다 선·면을 따로 그린다.
+  const runs: { x: number; y: number }[][] = [];
+  for (const p of pos) {
+    if (p.empty) continue;
+    const last = runs[runs.length - 1];
+    const prev = last?.[last.length - 1];
+    if (last && prev && Math.abs(p.x - prev.x - stepX) < 0.01) last.push(p);
+    else runs.push([p]);
+  }
+  const path = (run: { x: number; y: number }[]) =>
+    run.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
 
   return (
     <svg
@@ -38,16 +50,41 @@ export function Sparkline({
       preserveAspectRatio="none"
       role="img"
       aria-label="추이 그래프"
+      style={{ overflow: "visible" }}
     >
-      <path d={area} fill="var(--adaptiveBlue500)" opacity={0.12} />
-      <path
-        d={line}
-        fill="none"
-        stroke="var(--adaptiveBlue500)"
-        strokeWidth={2}
-        strokeLinejoin="round"
-        strokeLinecap="round"
-      />
+      {runs
+        .filter((run) => run.length > 1)
+        .map((run) => {
+          const line = path(run);
+          const first = run[0];
+          const end = run[run.length - 1];
+          return (
+            <g key={line}>
+              <path d={`${line} L${end.x},${height} L${first.x},${height} Z`} fill="var(--adaptiveBlue500)" opacity={0.12} />
+              <path
+                d={line}
+                fill="none"
+                stroke="var(--adaptiveBlue500)"
+                strokeWidth={2}
+                strokeLinejoin="round"
+                strokeLinecap="round"
+              />
+            </g>
+          );
+        })}
+      {pos.map((p, i) => (
+        <circle
+          key={i}
+          data-testid={testId ? `${testId}-point` : undefined}
+          data-empty={p.empty ? "true" : "false"}
+          cx={p.x}
+          cy={p.y}
+          r={3}
+          fill={p.empty ? "var(--adaptiveBackground)" : "var(--adaptiveBlue500)"}
+          stroke="var(--adaptiveBlue500)"
+          strokeWidth={p.empty ? 1.5 : 0}
+        />
+      ))}
     </svg>
   );
 }

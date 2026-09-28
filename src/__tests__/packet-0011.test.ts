@@ -194,6 +194,9 @@ describe("결과 잠금 층: 소득 구간 비교 + 6개월 추이 — LockedTie
 
     const block = screen.getByTestId("trend-block");
     expect(within(block).getAllByTestId("trend-sparkline")).toHaveLength(1);
+    const points = within(block).getAllByTestId("trend-sparkline-point");
+    expect(points).toHaveLength(6);
+    expect(points.map((p) => p.getAttribute("data-empty"))).toEqual(["true", "true", "true", "false", "false", "false"]);
     expect(within(block).getByTestId("trend-average").textContent).toContain("6개월 평균 이행률 75%");
     expect(within(block).getByTestId("trend-streak").textContent).toContain("연속 완료 0개월");
     expect(within(block).queryByText(EMPTY_TREND_TEXT)).toBeNull();
