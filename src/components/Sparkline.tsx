@@ -9,12 +9,15 @@ export function Sparkline({
   width = 320,
   height = 64,
   testId,
+  color = "var(--adaptiveBlue500)",
 }: {
   /** null은 값 없는 자리 — 선을 끊고 바닥에 빈 점으로 표시한다(자리는 유지). */
   data: (number | null)[];
   width?: number;
   height?: number;
   testId?: string;
+  /** 선·면·점 색(adaptive 토큰). 기본값은 템플릿 그대로 — 앱은 src/lib/theme.ts의 색을 명시한다. */
+  color?: string;
 }) {
   if (!data || data.length < 2) return null;
 
@@ -60,11 +63,11 @@ export function Sparkline({
           const end = run[run.length - 1];
           return (
             <g key={line}>
-              <path d={`${line} L${end.x},${height} L${first.x},${height} Z`} fill="var(--adaptiveBlue500)" opacity={0.12} />
+              <path d={`${line} L${end.x},${height} L${first.x},${height} Z`} fill={color} opacity={0.12} />
               <path
                 d={line}
                 fill="none"
-                stroke="var(--adaptiveBlue500)"
+                stroke={color}
                 strokeWidth={2}
                 strokeLinejoin="round"
                 strokeLinecap="round"
@@ -80,8 +83,8 @@ export function Sparkline({
           cx={p.x}
           cy={p.y}
           r={3}
-          fill={p.empty ? "var(--adaptiveBackground)" : "var(--adaptiveBlue500)"}
-          stroke="var(--adaptiveBlue500)"
+          fill={p.empty ? "var(--adaptiveBackground)" : color}
+          stroke={color}
           strokeWidth={p.empty ? 1.5 : 0}
         />
       ))}

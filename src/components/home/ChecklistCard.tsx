@@ -3,6 +3,7 @@ import { ListRow, Paragraph, Spacing, Switch, useToast } from "@toss/tds-mobile"
 import { generateHapticFeedback } from "@apps-in-toss/web-framework";
 import type { CategoryKey, RecordStore, SalaryPlan } from "@/lib/types";
 import { Card } from "@/components/Card";
+import { CategoryBadge } from "@/components/CategoryBadge";
 import { logClick } from "@/lib/analytics";
 import { getToday } from "@/lib/date";
 import { formatWon } from "@/lib/format";
@@ -11,6 +12,7 @@ import { CATEGORY_ORDER } from "@/lib/plan";
 import { requestReviewOnce } from "@/lib/review";
 import { toggleRecordItem } from "@/lib/recordToggle";
 import { loadRecords } from "@/lib/storage";
+import { LIST_CARD_PADDING, TEXT_INSET_TOP } from "@/lib/theme";
 
 const completeToast = (month: number) => `${month}월 이체를 모두 체크했어요`;
 const FAIL_TOAST = "저장 공간이 부족해 체크하지 못했어요. 잠시 뒤 다시 눌러 주세요";
@@ -65,17 +67,22 @@ export function ChecklistCard({
   };
 
   return (
-    <Card testId="checklist-card">
-      <Paragraph.Text typography="t4">이번 달 이체 체크</Paragraph.Text>
-      <Spacing size={4} />
-      <Paragraph.Text data-testid="progress-text" typography="t6" color="var(--adaptiveGrey600)">
-        {view.progressText}
-      </Paragraph.Text>
-      <Spacing size={12} />
+    // 정렬선: 제목·배지가 x = 16 + 20 = 36px(ListRow horizontalPadding="small" = 20px, 벤더 런타임 값).
+    <Card testId="checklist-card" style={{ padding: LIST_CARD_PADDING }}>
+      <div style={TEXT_INSET_TOP}>
+        <Paragraph.Text typography="t4">이번 달 이체 체크</Paragraph.Text>
+        <Spacing size={4} />
+        <Paragraph.Text data-testid="progress-text" typography="t6" color="var(--adaptiveGrey600)">
+          {view.progressText}
+        </Paragraph.Text>
+      </div>
+      <Spacing size={8} />
       {view.rows.map((row) => (
         <ListRow
           key={row.key}
           data-testid="checklist-row"
+          horizontalPadding="small"
+          left={<CategoryBadge kind={row.key} />}
           contents={
             <ListRow.Texts
               type="2RowTypeA"

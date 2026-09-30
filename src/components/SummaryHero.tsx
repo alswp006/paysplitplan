@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Paragraph, Spacing } from "@toss/tds-mobile";
 import { Card } from "./Card";
+import { BRAND } from "../lib/theme";
 
 /**
  * 요약 히어로 카드 — 탭 홈/대시보드의 시각적 앵커.
@@ -25,6 +26,7 @@ export function SummaryHero({
   action,
   ai,
   testId,
+  tone = "default",
 }: {
   label: ReactNode;
   /** 보통 <Amount .../> 또는 강조 텍스트(typography t1~t2) */
@@ -37,9 +39,14 @@ export function SummaryHero({
   /** AI 생성 결과면 true → "AI가 생성한 결과입니다" 라벨 표시(고지 의무) */
   ai?: boolean;
   testId?: string;
+  /**
+   * "brand"면 브랜드 틴트 바탕(--adaptiveGreen50) + 20px 패딩 — 카드 안 텍스트가 x = 16 + 20 = 36px 정렬선에 선다.
+   * 기본 "default"는 지금과 같다.
+   */
+  tone?: "default" | "brand";
 }) {
   return (
-    <Card testId={testId}>
+    <Card testId={testId} style={tone === "brand" ? { backgroundColor: BRAND.tint, padding: 20 } : undefined}>
       <Paragraph.Text typography="st11">{label}</Paragraph.Text>
       <Spacing size={4} />
       {/* value는 자체 typography를 가진다(<Amount typography="t1"/> 또는 Paragraph.Text). 중첩 금지. */}

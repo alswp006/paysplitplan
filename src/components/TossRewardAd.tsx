@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Button, Paragraph } from "@toss/tds-mobile";
 import { loadFullScreenAd, showFullScreenAd } from "@apps-in-toss/web-framework";
+import { CARD_INSET, SURFACE } from "@/lib/theme";
 
 interface TossRewardAdProps {
   /** 보상형 광고 그룹 ID(adGroupId) — 앱인토스 콘솔 발급값. 비어 있으면 게이트는 그냥 열린다. */
@@ -194,7 +195,18 @@ export function TossRewardAd({
           : buttonText;
 
   return (
-    <div data-testid="reward-gate" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+    // 결과 화면(흰 바탕)의 다른 카드와 같은 sunken 면 · 텍스트는 x 36px 정렬선(패딩 20).
+    <div
+      data-testid="reward-gate"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 12,
+        padding: CARD_INSET,
+        borderRadius: 16,
+        backgroundColor: SURFACE.sunken,
+      }}
+    >
       <Paragraph.Text typography="t6" color="var(--adaptiveGrey600)">
         {retry ? RETRY_DESCRIPTION : description}
       </Paragraph.Text>

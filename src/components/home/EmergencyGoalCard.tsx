@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { BottomSheet, Button, Paragraph, ProgressBar, SegmentedControl, Spacing, TextField, useToast } from "@toss/tds-mobile";
 import { generateHapticFeedback } from "@apps-in-toss/web-framework";
 import { Card } from "@/components/Card";
+import { CARD_INSET } from "@/lib/theme";
 import { logClick } from "@/lib/analytics";
 import { getToday } from "@/lib/date";
 import { formatAmountRaw, formatMonthLabel, formatWon, parseAmountInput } from "@/lib/format";
@@ -20,6 +21,8 @@ import {
 } from "@/lib/goal";
 import type { EmergencyGoal, GoalMonths, RecordStore, SalaryPlan } from "@/lib/types";
 
+// 맨 텍스트만 있는 카드 — 패딩 20이면 제목이 x = 16 + 20 = 36px 정렬선에 선다(체크리스트 제목·배지와 같은 선).
+const GOAL_CARD_STYLE = { padding: CARD_INSET } as const;
 const SAVE_FAIL_TOAST = "저장 공간이 부족해 저장하지 못했어요";
 const BALANCE_HELP = "이번 달 이체까지 포함한 금액이에요";
 
@@ -119,7 +122,7 @@ export function EmergencyGoalCard({ plan, store }: { plan: SalaryPlan; store: Re
       }
     };
     return (
-      <Card testId="emergency-goal">
+      <Card testId="emergency-goal" style={GOAL_CARD_STYLE}>
         {title}
         <Spacing size={8} />
         {essential > 0 ? (
@@ -183,7 +186,7 @@ export function EmergencyGoalCard({ plan, store }: { plan: SalaryPlan; store: Re
         : null;
 
   return (
-    <Card testId="emergency-goal">
+    <Card testId="emergency-goal" style={GOAL_CARD_STYLE}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
         {title}
         <Button variant="weak" size="small" onClick={() => setSheetOpen(true)}>

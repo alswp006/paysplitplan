@@ -92,6 +92,20 @@ describe("History 화면", () => {
     expect(screen.getAllByText("완료")).toHaveLength(1);
   });
 
+  it("N12: 월 행 — '완료' 배지는 월 이름 옆(top)에, 아랫줄은 'N개 중 M개 옮겼어요', 목록은 카드 한 장 안에 있다", () => {
+    localStorage.setItem(
+      RECORDS_KEY,
+      JSON.stringify({ version: 1, records: { "2026-07": record("2026-07", 100), "2026-09": record("2026-09", 75) } }),
+    );
+    renderWithRouter(<History />, { initialEntries: ["/history"] });
+
+    const [sep, jul] = screen.getAllByTestId("month-row");
+    expect(jul.querySelector('[data-slot="top"]')?.textContent).toBe("2026년 7월 완료");
+    expect(jul.querySelector('[data-slot="right"]')?.textContent).toBe("100%");
+    expect(sep.querySelector('[data-slot="bottom"]')?.textContent).toBe("4개 중 3개 옮겼어요");
+    expect(within(screen.getByTestId("month-list")).getAllByTestId("month-row")).toHaveLength(2);
+  });
+
   it("N2: 계획(50/30/10/10)이 있으면 이번 달은 저장된 100%가 아니라 현재 계획으로 다시 센 75%다 — 홈과 같은 숫자", () => {
     localStorage.setItem(PLAN_KEY, JSON.stringify(plan5311));
     localStorage.setItem(RECORDS_KEY, JSON.stringify({ version: 1, records: { "2026-09": septOld3of3 } }));

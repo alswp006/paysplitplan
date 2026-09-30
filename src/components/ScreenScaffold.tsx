@@ -1,5 +1,6 @@
 import { useLayoutEffect, type ReactNode } from "react";
 import { PageShell } from "./PageShell";
+import { SURFACE } from "../lib/theme";
 
 /**
  * 골든 화면 골격 — PageShell + (선택)헤더 슬롯 + 본문(좌우 16px 패딩) + (선택)하단 CTA 슬롯.
@@ -19,6 +20,7 @@ export function ScreenScaffold({
   children,
   bottom,
   flush,
+  surface = "plain",
 }: {
   top?: ReactNode;
   children: ReactNode;
@@ -29,6 +31,12 @@ export function ScreenScaffold({
    * 그런 폼 화면은 flush로 두고 맨 텍스트만 20px 거터로 감싸 정렬선을 20px 하나로 맞춘다.
    */
   flush?: boolean;
+  /**
+   * 페이지 바탕. "grouped"면 회색 바탕(--adaptiveGreyBackground) — 흰 카드가 면으로 보인다(라이트 모드에서
+   * 기본 배경과 카드 배경은 둘 다 흰색이다). 기본 "plain"은 지금과 같다(PageShell 배경 그대로).
+   * 하단 FixedBottomCTA(흰 그라데이션)가 있는 화면은 plain으로 둔다.
+   */
+  surface?: "plain" | "grouped";
 }) {
   // 화면(라우트)이 바뀌면 맨 위에서 시작한다 — 라우터는 스크롤을 되돌리지 않아, 긴 계획 화면 끝에서
   // "결과 보기"를 누르면 결과 화면이 중간부터 열렸다. window.scrollTo는 jsdom이 console.error를
@@ -42,7 +50,16 @@ export function ScreenScaffold({
   }, []);
 
   return (
-    <PageShell style={top ? { paddingTop: 0 } : undefined}>
+    <PageShell
+      style={
+        top || surface === "grouped"
+          ? {
+              ...(top ? { paddingTop: 0 } : null),
+              ...(surface === "grouped" ? { backgroundColor: SURFACE.grouped } : null),
+            }
+          : undefined
+      }
+    >
       {top}
       <div style={{ padding: flush ? "16px 0 0" : "16px 16px 0" }}>{children}</div>
       {bottom}

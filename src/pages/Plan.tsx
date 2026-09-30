@@ -7,6 +7,8 @@ import { SubmitFooter } from "@/components/BottomCTA";
 import { RatioBlock } from "@/components/plan/RatioBlock";
 import { FixedCostSheet } from "@/components/plan/FixedCostSheet";
 import { Card } from "@/components/Card";
+import { CategoryBadge } from "@/components/CategoryBadge";
+import { SplitBar } from "@/components/SplitBar";
 import { logClick, logImpression } from "@/lib/analytics";
 import { parseSharedRatios, ratioLine } from "@/lib/deeplink";
 import { formatAmountRaw, formatManwon, formatWon } from "@/lib/format";
@@ -22,11 +24,14 @@ import {
   validatePaydayInput,
   validateSalaryInput,
 } from "@/lib/planForm";
+import { ratioSplit } from "@/lib/split";
 import { loadPlan } from "@/lib/storage";
+import { BRAND } from "@/lib/theme";
 import type { FixedCost, Ratios, RouteState, SalaryPlan } from "@/lib/types";
 
 const DEFAULT_PAYDAY = "25";
-// TDS 입력·리스트의 내장 좌우 패딩(20px)에 맞춘 맨 텍스트·버튼용 거터 — 정렬선을 20px 하나로 통일한다.
+// TDS 입력의 내장 좌우 패딩(20px)과 ListRow horizontalPadding="small"(20px — 기본 medium은 24px)에 맞춘
+// 맨 텍스트·버튼용 거터 — 이 화면(flush)의 정렬선을 20px 하나로 통일한다.
 const GUTTER = { padding: "0 20px" } as const;
 const MAX_FIXED_COST_TOAST = "고정비는 최대 10개까지 추가할 수 있어요";
 // 비율 오류의 자세한 문구("…맞춰주세요 (현재 90%)")는 RatioBlock이 칸 바로 아래에 보여준다 — 하단 안내는 다음 행동만 말한다.
@@ -75,10 +80,16 @@ function initialState(plan: SalaryPlan | null, shared: Ratios | null): FormState
 
 /** 받은 비율 배너 — 공유 링크(`/plan?r=`)로 들어왔을 때 맨 위에 한 번 보인다. */
 function SharedRatioBanner({ ratios, hasPlan }: { ratios: Ratios; hasPlan: boolean }) {
+  const split = ratioSplit(ratios);
   return (
-    <Card testId="shared-ratio-banner" style={{ backgroundColor: "var(--adaptiveGreen50)" }}>
+    <Card testId="shared-ratio-banner" style={{ backgroundColor: BRAND.tint }}>
       <Paragraph.Text typography="t5">받은 비율로 채웠어요</Paragraph.Text>
+      <Spacing size={10} />
+      <SplitBar testId="shared-ratio-bar" height={12} segments={split.segments} ariaLabel={`받은 비율 ${split.ariaLabel}`} />
+      <Spacing size={8} />
+      {/* 막대 색의 텍스트 뜻 — 바로 아래 비율 한 줄이 범례 역할을 한다(색만으로 뜻을 전하지 않는다). */}
       <Paragraph.Text typography="t6">{ratioLine(ratios)}</Paragraph.Text>
+      <Spacing size={4} />
       <Paragraph.Text typography="t6" color="var(--adaptiveGrey600)">
         {hasPlan ? "저장하기 전까지 기존 계획은 그대로예요" : "월급과 고정비를 넣으면 금액이 나와요"}
       </Paragraph.Text>
@@ -222,6 +233,8 @@ export default function Plan() {
         fixedCosts.map((fc) => (
           <ListRow
             key={fc.id}
+            horizontalPadding="small"
+            left={<CategoryBadge kind="fixed" />}
             contents={<ListRow.Texts type="2RowTypeA" top={fc.name} bottom={formatWon(fc.amount)} />}
             right={
               <Button

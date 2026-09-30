@@ -18,7 +18,14 @@ export type TabItem = {
  * 이 컴포넌트는 네이티브 토스처럼 활성탭을 '아이콘+라벨 컬러 틴트'로만 표시한다
  * (배경 알약/Button variant=fill 금지). 활성 판정은 현재 경로(useLocation)로 자동.
  */
-export function FloatingTabBar({ items }: { items: TabItem[] }) {
+export function FloatingTabBar({
+  items,
+  activeColor = "var(--adaptiveBlue500)",
+}: {
+  items: TabItem[];
+  /** 활성 탭의 아이콘·라벨 색(adaptive 토큰). 기본값은 템플릿 그대로 — 앱은 src/lib/theme.ts의 색을 명시한다. */
+  activeColor?: string;
+}) {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -70,7 +77,7 @@ export function FloatingTabBar({ items }: { items: TabItem[] }) {
               background: "none",
               cursor: "pointer",
               // 활성=브랜드 컬러 틴트, 비활성=중간 회색. 솔리드 배경/알약 없음.
-              color: active ? "var(--adaptiveBlue500)" : "var(--adaptiveGrey800)",
+              color: active ? activeColor : "var(--adaptiveGrey800)",
               fontSize: 12,
               fontWeight: active ? 700 : 600,
             }}

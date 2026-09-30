@@ -65,4 +65,43 @@ describe("Home 히어로 — 체크에 바로 반응한다", () => {
     renderWithRouter(<Home />);
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("월급쪼개기");
   });
+
+  it("시그니처 막대(split-strip)는 체크한 통장만 채운다 — 스위치를 켜면 바로 따라온다", async () => {
+    localStorage.setItem(PLAN_KEY, JSON.stringify(planA));
+    renderWithRouter(<Home />);
+
+    const filled = () =>
+      Array.from(screen.getByTestId("split-strip").querySelectorAll('[data-filled="true"]')).map(
+        (el) => (el as HTMLElement).dataset.key,
+      );
+    expect(screen.getAllByTestId("split-segment")).toHaveLength(4);
+    expect(filled()).toEqual([]);
+
+    const card = within(screen.getByTestId("checklist-card"));
+    fireEvent.click(card.getByRole("switch", { name: "저축 통장 이체 완료" }));
+    await waitFor(() => expect(filled()).toEqual(["saving"]));
+    fireEvent.click(card.getByRole("switch", { name: "비상금 통장 이체 완료" }));
+    await waitFor(() => expect(filled()).toEqual(["saving", "emergency"]));
+    expect(screen.getByRole("img", { name: "생활비 남음, 저축 옮김, 비상금 옮김, 여가 남음" })).toBeTruthy();
+  });
+
+  it("체크리스트 행마다 통장 배지(장식)가 있다", () => {
+    localStorage.setItem(PLAN_KEY, JSON.stringify(planA));
+    renderWithRouter(<Home />);
+    const rows = screen.getAllByTestId("checklist-row");
+    expect(rows.map((r) => r.querySelector('[data-testid="category-badge"]')?.getAttribute("data-kind"))).toEqual([
+      "living",
+      "saving",
+      "emergency",
+      "leisure",
+    ]);
+  });
+
+  it("빈 홈은 예시 막대(example-split)로 이 앱이 하는 일을 먼저 보여 준다", () => {
+    renderWithRouter(<Home />);
+    const example = screen.getByTestId("example-split");
+    expect(example.textContent).toContain("예시 · 월급 300만 원, 고정비 60만 원, 기본 5:3:1:1");
+    expect(within(example).getAllByTestId("split-segment")).toHaveLength(5);
+    expect(screen.getByText("통장별 금액을 정하고, 은행 앱에 붙여 넣고, 월급날마다 체크해요")).toBeTruthy();
+  });
 });

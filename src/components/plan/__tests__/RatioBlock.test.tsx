@@ -3,7 +3,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { mockAll } from "@/__tests__/__helpers__/mocks";
 import { generateHapticFeedback } from "@apps-in-toss/web-framework";
 import { RatioBlock } from "@/components/plan/RatioBlock";
-import { getRatioRowText, stepRatio, sumRatios } from "@/lib/ratioForm";
+import { getRatioRowBody, getRatioRowText, stepRatio, sumRatios } from "@/lib/ratioForm";
 
 mockAll();
 
@@ -21,6 +21,25 @@ describe("ratioForm", () => {
     expect(getRatioRowText("living", [100, 30, 10, 10], 2400000)).toBe("생활비 100% · 2,400,000원");
     expect(getRatioRowText("saving", [50, 30, 10, 10], null)).toBe("저축 30% · -원");
     expect(getRatioRowText("saving", [50, 30, 10, 10], 0)).toBe("저축 30% · -원");
+  });
+
+  it("getRatioRowBody: 라벨을 뺀 아랫줄 '{n}% · {금액}' — getRatioRowText = 라벨 + 본문", () => {
+    expect(getRatioRowBody("saving", [50, 30, 10, 10], 2400000)).toBe("30% · 720,000원");
+    expect(getRatioRowBody("leisure", [50, 30, 10, 10], null)).toBe("10% · -원");
+    expect(getRatioRowText("saving", [50, 30, 10, 10], 2400000)).toBe(`저축 ${getRatioRowBody("saving", [50, 30, 10, 10], 2400000)}`);
+  });
+
+  it("비율 행은 통장 배지 + 라벨(윗줄) + 본문(아랫줄), 위에는 비율 미리보기 막대", () => {
+    render(<RatioBlock ratios={[50, 30, 10, 10]} presetId="p532" available={2400000} onChange={vi.fn()} />);
+    const bar = screen.getByRole("img", { name: "생활비 50%, 저축 30%, 비상금 10%, 여가 10%" });
+    expect(bar.getAttribute("data-testid")).toBe("ratio-preview-bar");
+    expect(screen.getAllByTestId("category-badge").map((b) => b.getAttribute("data-kind"))).toEqual([
+      "living",
+      "saving",
+      "emergency",
+      "leisure",
+    ]);
+    expect(screen.getByText("30% · 720,000원")).toBeTruthy();
   });
 });
 

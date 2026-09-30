@@ -6,6 +6,7 @@ import { ScreenScaffold } from "@/components/ScreenScaffold";
 import { EmptyState } from "@/components/StateView";
 import { SummaryHero } from "@/components/SummaryHero";
 import { CountUp } from "@/components/CountUp";
+import { SplitBar, SplitLegend } from "@/components/SplitBar";
 import { TossRewardAd } from "@/components/TossRewardAd";
 import { LockedTierSection } from "@/components/result/LockedTierSection";
 import { ResultSaveFooter } from "@/components/result/ResultSaveFooter";
@@ -16,6 +17,7 @@ import { buildRatioShareMessage, ratioParam, toIntossPath } from "@/lib/deeplink
 import { formatWon } from "@/lib/format";
 import { calculateAllocation } from "@/lib/plan";
 import { shareApp } from "@/lib/share";
+import { allocationSplit, legendKinds } from "@/lib/split";
 import { loadPlan } from "@/lib/storage";
 import { useImpressionRef } from "@/lib/useImpression";
 import { isValidDraft } from "@/lib/validate";
@@ -70,6 +72,8 @@ export default function Result() {
 
   const { draft, fromSavedPlan } = source;
   const { fixedTotal, available } = calculateAllocation(draft.salary, draft.fixedCosts, draft.ratios);
+  // 시그니처 — 월급 한 줄이 고정비와 통장 4개로 갈라진다. 금액은 막대의 aria-label에만(무료 층 금액 텍스트는 세팅표 행 하나).
+  const split = allocationSplit(draft.salary, draft.fixedCosts, draft.ratios);
 
   // 월급·금액은 보내지 않고 비율만 보낸다. 받은 사람은 /plan?r=로 들어와 자기 월급으로 계산한다.
   const onShare = () => {
@@ -86,9 +90,17 @@ export default function Result() {
       <div data-testid="free-tier" ref={freeRef}>
         <SummaryHero
           testId="available-hero"
+          tone="brand"
           label="남는 돈"
           value={<CountUp value={available} unit="원" typography="t1" durationMs={0} />}
           caption={`월급 ${formatWon(draft.salary)} − 고정비 ${formatWon(fixedTotal)}`}
+          extra={
+            <>
+              <SplitBar testId="split-hero-bar" height={20} animate segments={split.segments} ariaLabel={split.ariaLabel} />
+              <Spacing size={10} />
+              <SplitLegend testId="split-legend" kinds={legendKinds(split.segments)} />
+            </>
+          }
         />
         <Spacing size={16} />
         {/* 무료 층의 본문 — 은행 앱에 붙여 넣을 통장별 금액. 통장 금액 텍스트는 여기에서만 한 번씩 나온다. */}

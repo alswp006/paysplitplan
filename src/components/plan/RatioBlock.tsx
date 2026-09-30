@@ -1,8 +1,11 @@
 import { Button, Chip, ChipItem, ListRow, Paragraph, Spacing } from "@toss/tds-mobile";
 import { generateHapticFeedback } from "@apps-in-toss/web-framework";
 import type { Ratios } from "@/lib/types";
+import { CategoryBadge } from "@/components/CategoryBadge";
+import { SplitBar } from "@/components/SplitBar";
+import { ratioSplit } from "@/lib/split";
 import { CATEGORY_LABEL, CATEGORY_ORDER, PRESETS } from "@/lib/plan";
-import { RATIO_STEP, getRatioRowText, stepRatio, sumRatios } from "@/lib/ratioForm";
+import { RATIO_STEP, getRatioRowBody, stepRatio, sumRatios } from "@/lib/ratioForm";
 
 const CUSTOM_ID = "custom";
 const PRESET_LIST = [PRESETS.p532, PRESETS.p442, PRESETS.p622];
@@ -43,8 +46,15 @@ export function RatioBlock({
     onChange(next, CUSTOM_ID);
   };
 
+  const preview = ratioSplit(ratios);
+
   return (
     <div>
+      {/* 비율 미리보기 — 칩·+/-를 누르면 바로 조각 폭이 바뀐다. 아래 비율 행(배지 + 이름)이 색의 뜻을 말한다. */}
+      <div style={{ padding: "0 20px" }}>
+        <SplitBar testId="ratio-preview-bar" height={12} segments={preview.segments} ariaLabel={preview.ariaLabel} />
+      </div>
+      <Spacing size={16} />
       <Chip kind="select" wrap>
         {PRESET_LIST.map((p) => (
           // aria-pressed: 벤더 ChipItem은 선택 상태를 색으로만 그리고 접근성 속성을 달지 않는다(2.5.1 런타임).
@@ -70,7 +80,11 @@ export function RatioBlock({
       {CATEGORY_ORDER.map((key, index) => (
         <ListRow
           key={key}
-          contents={<ListRow.Texts type="1RowTypeA" top={getRatioRowText(key, ratios, available)} />}
+          horizontalPadding="small"
+          left={<CategoryBadge kind={key} />}
+          contents={
+            <ListRow.Texts type="2RowTypeA" top={CATEGORY_LABEL[key]} bottom={getRatioRowBody(key, ratios, available)} />
+          }
           right={
             <div style={{ display: "flex", gap: 8 }}>
               <Button

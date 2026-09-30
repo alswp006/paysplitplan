@@ -505,3 +505,236 @@ test.describe("phase 2", () => {
     guard.expectClean();
   });
 });
+
+// ── phase 3: 정체성(브랜드·팔레트·표면·시그니처 막대·정렬선) ──
+
+const TOSS_BLUE = "rgb(49, 130, 246)";
+const GREY_BG = "rgb(242, 244, 246)";
+const WHITE = "rgb(255, 255, 255)";
+const GREEN50 = "rgb(240, 250, 246)";
+const GREEN800 = "rgb(2, 132, 80)";
+
+/** 요소의 계산된 배경색 */
+async function bg(page: Page, testId: string): Promise<string> {
+  return page.getByTestId(testId).first().evaluate((el) => getComputedStyle(el).backgroundColor);
+}
+
+/** 요소에서 위로 올라가 PageShell 루트(min-height 100dvh)의 계산된 배경색 */
+async function shellBg(page: Page, testId: string): Promise<string> {
+  return page.getByTestId(testId).first().evaluate((el) => {
+    let node: HTMLElement | null = el as HTMLElement;
+    while (node && node.style.minHeight !== "100dvh") node = node.parentElement;
+    if (!node) throw new Error("PageShell 루트를 못 찾았다");
+    return getComputedStyle(node).backgroundColor;
+  });
+}
+
+async function x(locator: ReturnType<Page["locator"]>): Promise<number> {
+  const box = await locator.boundingBox();
+  if (!box) throw new Error("bbox 없음");
+  return box.x;
+}
+
+function expectAligned(xs: Record<string, number>, target?: number) {
+  const values = Object.values(xs);
+  const base = target ?? values[0];
+  for (const [name, v] of Object.entries(xs)) expect(Math.abs(v - base), `${name}: x=${v} (기준 ${base})`).toBeLessThanOrEqual(1);
+}
+
+test.describe("phase 3", () => {
+  test("P3-04: 홈·기록은 회색 바탕 위 흰 카드, 히어로는 Green50 틴트 · 결과는 흰 바탕 위 회색 세팅표", async ({ page }) => {
+    const guard = consoleGuard(page);
+    await atTime(page);
+    await seedPlan(page, SEED_A);
+    await seedRecords(page, [makeRecord("2026-08", SEED_A, KEYS), makeRecord("2026-09", SEED_A, ["saving"])]);
+
+    await page.goto("/");
+    await expect(page.getByTestId("dday-hero")).toBeVisible();
+    expect(await shellBg(page, "dday-hero")).toBe(GREY_BG);
+    expect(await bg(page, "checklist-card")).toBe(WHITE);
+    expect(await bg(page, "emergency-goal")).toBe(WHITE);
+    expect(await bg(page, "dday-hero")).toBe(GREEN50);
+
+    await page.goto("/history");
+    await expect(page.getByTestId("history-hero")).toBeVisible();
+    expect(await shellBg(page, "history-hero")).toBe(GREY_BG);
+    expect(await bg(page, "history-hero")).toBe(GREEN50);
+    expect(await bg(page, "month-list")).toBe(WHITE);
+
+    await page.goto("/result");
+    await expect(page.getByTestId("available-hero")).toBeVisible();
+    expect(await shellBg(page, "available-hero")).toBe(WHITE);
+    expect(await bg(page, "available-hero")).toBe(GREEN50);
+    expect(await bg(page, "setup-sheet")).toBe(GREY_BG);
+    guard.expectClean();
+  });
+
+  test("P3-05: 결과 히어로 막대 — 5조각, 서로 다른 색, 폭은 월급 대비 비율(±2px), 토스 파랑 없음", async ({ page }) => {
+    const guard = consoleGuard(page);
+    await atTime(page);
+    await seedPlan(page, SEED_A);
+    await page.goto("/result");
+    await page.waitForTimeout(1500);
+
+    const bar = page.getByTestId("split-hero-bar");
+    const segs = bar.getByTestId("split-segment");
+    await expect(segs).toHaveCount(5);
+    const barBox = await bar.boundingBox();
+    const info = await segs.evaluateAll((els) =>
+      els.map((el) => ({ key: (el as HTMLElement).dataset.key, color: getComputedStyle(el).backgroundColor, width: el.getBoundingClientRect().width })),
+    );
+    expect(info.map((s) => s.key)).toEqual(["fixed", "living", "saving", "emergency", "leisure"]);
+    expect(new Set(info.map((s) => s.color)).size).toBe(5);
+    for (const s of info) expect(s.color, `${s.key} 조각`).not.toBe(TOSS_BLUE);
+    const values: Record<string, number> = { fixed: 600_000, living: 1_200_000, saving: 720_000, emergency: 240_000, leisure: 240_000 };
+    for (const s of info) {
+      const expected = ((barBox!.width - 2 * 4) * values[s.key!]) / 3_000_000;
+      expect(Math.abs(s.width - expected), `${s.key}: ${s.width} vs ${expected}`).toBeLessThanOrEqual(2);
+    }
+    // 범례는 라벨만(금액은 막대 aria-label에만)
+    await expect(page.getByTestId("split-legend")).toHaveText(/고정비.*생활비.*저축.*비상금.*여가/);
+    expect(await page.getByTestId("split-legend").innerText()).not.toMatch(/원/);
+    await expect(page.getByRole("img", { name: /^월급 3,000,000원 중 고정비 600,000원/ })).toBeVisible();
+    guard.expectClean();
+  });
+
+  test("P3-06: 홈 막대는 켠 통장만 채운다 · 빈 홈에는 예시 막대가 있다", async ({ page }) => {
+    const guard = consoleGuard(page);
+    await atTime(page);
+    await page.goto("/");
+    await expect(page.getByTestId("example-split")).toBeVisible();
+    await expect(page.getByTestId("example-split")).toContainText("예시 ·");
+
+    await page.evaluate((plan) => localStorage.setItem("paysplit:plan:v1", JSON.stringify(plan)), SEED_A);
+    await page.reload();
+    await page.getByRole("switch", { name: "저축 통장 이체 완료" }).click();
+    await page.getByRole("switch", { name: "비상금 통장 이체 완료" }).click();
+    const filled = page.getByTestId("split-strip").locator('[data-filled="true"]');
+    await expect(filled).toHaveCount(2);
+    expect(await filled.evaluateAll((els) => els.map((el) => (el as HTMLElement).dataset.key))).toEqual(["saving", "emergency"]);
+    guard.expectClean();
+  });
+
+  test("P3-07: 계획 화면 비율 미리보기 막대는 -/+ 조작을 바로 따라온다", async ({ page }) => {
+    const guard = consoleGuard(page);
+    await atTime(page);
+    await seedPlan(page, SEED_A);
+    await page.goto("/plan");
+    const grow = () =>
+      page
+        .getByTestId("ratio-preview-bar")
+        .getByTestId("split-segment")
+        .evaluateAll((els) => els.map((el) => Number(getComputedStyle(el).flexGrow)));
+    expect(await grow()).toEqual([50, 30, 10, 10]);
+    await page.getByRole("button", { name: "생활비 5% 줄이기" }).click();
+    await page.getByRole("button", { name: "저축 5% 늘리기" }).click();
+    expect(await grow()).toEqual([45, 35, 10, 10]);
+    guard.expectClean();
+  });
+
+  test("P3-08: 활성 탭은 브랜드 Green800(rgb(2, 132, 80))이다", async ({ page }) => {
+    const guard = consoleGuard(page);
+    await atTime(page);
+    await seedPlan(page, SEED_A);
+    await page.goto("/");
+    const tab = page.getByRole("tab", { name: "홈", selected: true });
+    expect(await tab.evaluate((el) => getComputedStyle(el).color)).toBe(GREEN800);
+    await page.getByRole("tab", { name: "기록" }).click();
+    const historyTab = page.getByRole("tab", { name: "기록", selected: true });
+    expect(await historyTab.evaluate((el) => getComputedStyle(el).color)).toBe(GREEN800);
+    guard.expectClean();
+  });
+
+  test("P3-09: 6개월 기록의 월 행 높이가 모두 같고(±1px), 잠금 층 '내 월급' 행 금액은 한 줄이다", async ({ page }) => {
+    const guard = consoleGuard(page);
+    await atTime(page);
+    await seedPlan(page, SEED_A);
+    await seedRecords(page, [
+      makeRecord("2026-04", SEED_A, KEYS),
+      makeRecord("2026-05", SEED_A, ["living", "saving"]),
+      makeRecord("2026-06", SEED_A, KEYS),
+      makeRecord("2026-07", SEED_A, KEYS),
+      makeRecord("2026-08", SEED_A, ["saving"]),
+      makeRecord("2026-09", SEED_A, ["saving", "emergency", "living"]),
+    ]);
+    await page.goto("/history");
+    const rows = page.getByTestId("month-row");
+    await expect(rows).toHaveCount(6);
+    const heights = await rows.evaluateAll((els) => els.map((el) => el.getBoundingClientRect().height));
+    for (const h of heights) expect(Math.abs(h - heights[0]), `행 높이 ${heights.join(", ")}`).toBeLessThanOrEqual(1);
+
+    await page.goto("/result");
+    const mine = page.getByTestId("bracket-row").filter({ hasText: "내 월급" });
+    await expect(mine).toHaveCount(1);
+    const amount = mine.getByText("720,000원", { exact: true });
+    const box = await amount.boundingBox();
+    // 한 줄 = t5 줄 높이 25.5px(설치본 실측). 스펙의 24px는 t5 한 줄보다 작아 한 줄도 실패한다 — 세팅표 금액(F1-7)과
+    // 같은 26px로 잰다(두 줄이면 51px).
+    expect(box!.height).toBeLessThanOrEqual(26);
+    guard.expectClean();
+  });
+
+  test("P3-10: 정렬선 하나 — 결과·홈은 x 36px, 계획(flush)은 x 20px에 제목·배지가 선다", async ({ page }) => {
+    const guard = consoleGuard(page);
+    await atTime(page);
+    await seedPlan(page, SEED_A);
+
+    await page.goto("/result");
+    await expect(page.getByTestId("setup-sheet")).toBeVisible();
+    expectAligned(
+      {
+        heroLabel: await x(page.getByTestId("available-hero").getByText("남는 돈", { exact: true })),
+        sheetTitle: await x(page.getByTestId("setup-sheet").getByText("은행 앱에 옮길 세팅표", { exact: true })),
+        firstBadge: await x(page.getByTestId("setup-sheet").getByTestId("category-badge").first()),
+      },
+      36,
+    );
+
+    await page.goto("/");
+    await expect(page.getByTestId("checklist-card")).toBeVisible();
+    expectAligned(
+      {
+        heroLabel: await x(page.getByTestId("dday-hero").getByText("9월 이체", { exact: true })),
+        checklistTitle: await x(page.getByTestId("checklist-card").getByText("이번 달 이체 체크", { exact: true })),
+        firstBadge: await x(page.getByTestId("checklist-card").getByTestId("category-badge").first()),
+        goalTitle: await x(page.getByTestId("emergency-goal").getByText("비상금 목표", { exact: true })),
+      },
+      36,
+    );
+
+    await page.goto("/plan");
+    await expect(page.getByTestId("ratio-preview-bar")).toBeVisible();
+    const badges = page.getByTestId("category-badge");
+    expectAligned(
+      {
+        fixedTitle: await x(page.getByText("고정비", { exact: true })),
+        fixedBadge: await x(page.locator('[data-testid="category-badge"][data-kind="fixed"]').first()),
+        ratioBadge: await x(page.locator('[data-testid="category-badge"][data-kind="living"]').first()),
+        previewBar: await x(page.getByTestId("ratio-preview-bar")),
+      },
+      20,
+    );
+    expect(await badges.count()).toBeGreaterThanOrEqual(5);
+    guard.expectClean();
+  });
+
+  test("P3-12: 360px 폭에서도 가로 스크롤이 없고 세팅표 금액은 한 줄이다", async ({ page }) => {
+    const guard = consoleGuard(page);
+    await page.setViewportSize({ width: 360, height: 800 });
+    await atTime(page);
+    await seedPlan(page, SEED_A);
+    await seedRecords(page, [makeRecord("2026-08", SEED_A, KEYS), makeRecord("2026-09", SEED_A, ["saving", "emergency"])]);
+    for (const path of ["/", "/plan", "/plan?r=40-40-10-10", "/result", "/history", "/does-not-exist"]) {
+      await page.goto(path);
+      await page.waitForTimeout(500);
+      const sw = await page.evaluate(() => document.documentElement.scrollWidth);
+      expect(sw, `${path}: scrollWidth`).toBeLessThanOrEqual(360);
+    }
+    await page.goto("/result");
+    for (const amount of ["1,200,000원", "720,000원", "240,000원"]) {
+      const el = page.getByTestId("setup-sheet").getByText(amount, { exact: true }).first();
+      expect((await el.boundingBox())!.height, amount).toBeLessThanOrEqual(26);
+    }
+    guard.expectClean();
+  });
+});

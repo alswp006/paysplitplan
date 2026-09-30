@@ -7,11 +7,14 @@ export function MiniBar({
   ratio,
   height = 8,
   testId,
+  color = "var(--adaptiveBlue500)",
 }: {
   /** 0..1 (범위 밖은 클램프) */
   ratio: number;
   height?: number;
   testId?: string;
+  /** 채움 색(adaptive 토큰). 기본값은 템플릿 그대로 — 앱은 src/lib/theme.ts의 색을 명시한다. */
+  color?: string;
 }) {
   const pct = Math.max(0, Math.min(1, ratio)) * 100;
   return (
@@ -34,7 +37,7 @@ export function MiniBar({
           width: `${pct}%`,
           height: "100%",
           borderRadius: height,
-          backgroundColor: "var(--adaptiveBlue500)",
+          backgroundColor: color,
         }}
       />
     </div>

@@ -41,6 +41,43 @@ async function seed(page: Page): Promise<void> {
         updatedAt: ts,
       }),
     );
+
+    // 목표 카드·연속 기록·옮긴 돈 카드가 스크린샷에 찍히도록 — 오늘 기준 달(monthKey)을 여기서 계산한다.
+    // 지난 2개월은 4/4(연속 기록 2개월), 이번 달은 저축·비상금만 체크(홈 막대가 2조각 채워진다).
+    const monthKey = (offset: number) => {
+      const d = new Date();
+      const m = new Date(d.getFullYear(), d.getMonth() + offset, 1);
+      return `${m.getFullYear()}-${String(m.getMonth() + 1).padStart(2, "0")}`;
+    };
+    const amounts = { living: 1200000, saving: 720000, emergency: 240000, leisure: 240000 };
+    const record = (month: string, all: boolean) => ({
+      id: `rec_${month}`,
+      planId: "plan_smoke",
+      month,
+      checked: { living: all, saving: true, emergency: true, leisure: all },
+      eligible: ["living", "saving", "emergency", "leisure"],
+      rate: all ? 100 : 50,
+      completedAt: all ? ts : null,
+      snapshot: { salary: 3000000, fixedTotal: 600000, available: 2400000, ratios: [50, 30, 10, 10], amounts },
+      createdAt: ts,
+      updatedAt: ts,
+    });
+    const months = [monthKey(-2), monthKey(-1), monthKey(0)];
+    window.localStorage.setItem(
+      "paysplit:records:v1",
+      JSON.stringify({
+        version: 1,
+        records: {
+          [months[0]]: record(months[0], true),
+          [months[1]]: record(months[1], true),
+          [months[2]]: record(months[2], false),
+        },
+      }),
+    );
+    window.localStorage.setItem(
+      "paysplit:goal:v1",
+      JSON.stringify({ version: 1, months: 6, baseBalance: 0, baseMonth: monthKey(-1), createdAt: ts, updatedAt: ts }),
+    );
   });
 }
 
