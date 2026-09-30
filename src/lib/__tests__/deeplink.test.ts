@@ -20,7 +20,7 @@ describe("deeplink — 공유 경로와 메시지", () => {
   it("비율 파라미터와 메시지 — 금액 없이 비율만 싣는다", () => {
     expect(ratioParam([40, 40, 10, 10])).toBe("40-40-10-10");
     const msg = buildRatioShareMessage([40, 40, 10, 10]);
-    expect(msg).toBe("월급쪼개기로 이렇게 나눠요\n생활비 40 · 저축 40 · 비상금 10 · 여가 10\n내 월급으로 계산해 보기");
+    expect(msg).toBe("월급쪼개기로 이렇게 나눠요\n생활비 40% · 저축 40% · 비상금 10% · 여가 10%\n내 월급으로 계산해 보기");
     expect(msg).not.toMatch(/\d{1,3}(,\d{3})+원|만 원/);
   });
 });
@@ -46,6 +46,6 @@ describe("parseSharedRatios — 받은 링크의 ?r=", () => {
   });
 
   it("배너 줄은 공유 메시지와 같은 표기다", () => {
-    expect(ratioLine([40, 40, 10, 10])).toBe("생활비 40 · 저축 40 · 비상금 10 · 여가 10");
+    expect(ratioLine([40, 40, 10, 10])).toBe("생활비 40% · 저축 40% · 비상금 10% · 여가 10%");
   });
 });

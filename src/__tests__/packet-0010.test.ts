@@ -13,17 +13,17 @@ mockAppsInToss();
 mockRouter();
 
 // ── 계약 (Coder가 이 동작대로 만든다) ──
-// src/lib/planForm.ts — 월급·월급날 원문 검증 / 남는 돈 미리보기 문구 / buildDraft(유효할 때만 PlanDraft, 아니면 null)
+// src/lib/planForm.ts — 월급·월급날 원문 검증 / 나눌 돈 미리보기 문구 / buildDraft(유효할 때만 PlanDraft, 아니면 null)
 // src/pages/Plan.tsx (default export)
 //   - 저장된 계획(loadPlan)이 있으면 월급 칸은 천 단위 쉼표로("3,000,000"), 월급날·고정비·비율을 채우고
 //     presetId는 저장값이 아니라 resolvePresetId(ratios)로 복원한다. 없으면 월급 '', 월급날 '25', p532, 고정비 없음.
 //   - 월급 칸 label '월급', 월급날 칸 label '월급날'(둘 다 inputMode numeric). help = 에러 ?? 안내.
 //     월급 안내는 formatManwon(salary) → '300만 원', 월급날 안내는 '매달 25일처럼 날짜만 입력해요'.
-//   - data-testid="available-preview": '남는 돈 {n}원'. 월급이 유효하지 않거나 남는 돈이 0 이하면 '남는 돈 -원'(음수 금지).
+//   - data-testid="available-preview": '나눌 돈 {n}원'. 월급이 유효하지 않거나 나눌 돈이 0 이하면 '나눌 돈 -원'(음수 금지).
 //   - 고정비 행: ListRow contents(top=이름, bottom='500,000원'), 빈 목록이면 안내 '월세·통신비처럼 매달 나가는 돈을 넣어 주세요'.
 //   - '고정비 추가' 버튼 → FixedCostSheet(role=dialog). 10개면 시트 대신 openToast('고정비는 최대 10개까지 추가할 수 있어요').
 //     추가가 끝나면 시트는 닫힌다.
-//   - 1차 CTA는 SubmitFooter '배분 결과 보기'. 월급이 빈 값이면 enabled이고 탭하면 '월급을 입력해주세요'(제출 안 함),
+//   - 1차 CTA는 SubmitFooter '세팅표 보기'. 월급이 빈 값이면 enabled이고 탭하면 '월급을 입력해주세요'(제출 안 함),
 //     그 외 검증 실패(월급·월급날·고정비 합계)는 disabled.
 //   - 제출: logClick('plan_submit') → navigate('/result', { state: { draft } }). draft는 PlanDraft(id·createdAt·updatedAt·version 없음).
 
@@ -42,7 +42,7 @@ const SALARY_ERR_NAN = "숫자만 입력해주세요";
 const PAYDAY_HELP = "매달 25일처럼 날짜만 입력해요";
 const EMPTY_FIXED_HINT = "월세·통신비처럼 매달 나가는 돈을 넣어 주세요";
 const MAX_TOAST = "고정비는 최대 10개까지 추가할 수 있어요";
-const CTA = "배분 결과 보기";
+const CTA = "세팅표 보기";
 
 const rent: FixedCost = { id: "fc_rent", name: "월세", amount: 500_000, createdAt: TS, updatedAt: TS };
 const phone: FixedCost = { id: "fc_phone", name: "통신비", amount: 100_000, createdAt: TS, updatedAt: TS };
@@ -113,14 +113,14 @@ beforeEach(() => {
 });
 
 describe("계획 짜기 화면 (/plan)", () => {
-  it("AC-1[P0]: 월급 300만 원에 월세·통신비를 추가하면 '300만 원'과 '남는 돈 2,400,000원'이 보이고, 제출하면 초안이 /result로 넘어간다", async () => {
+  it("AC-1[P0]: 월급 300만 원에 월세·통신비를 추가하면 '300만 원'과 '나눌 돈 2,400,000원'이 보이고, 제출하면 초안이 /result로 넘어간다", async () => {
     renderPlan();
     typeSalary("3000000");
     await addCost("월세", "500000");
     await addCost("통신비", "100000");
 
     expect(screen.getByText("300만 원")).toBeInTheDocument();
-    expect(preview().textContent).toBe("남는 돈 2,400,000원");
+    expect(preview().textContent).toBe("나눌 돈 2,400,000원");
     expect(screen.getByText("월세")).toBeInTheDocument();
     expect(screen.getByText("500,000원")).toBeInTheDocument();
     expect(screen.getByText("통신비")).toBeInTheDocument();
@@ -235,20 +235,20 @@ describe("계획 짜기 화면 (/plan)", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
-  it.each(["", "0", "abc", "3,000원"])("AC-4[P0]: 월급 '%s'이면 남는 돈 미리보기에 음수가 나오지 않는다", (raw) => {
+  it.each(["", "0", "abc", "3,000원"])("AC-4[P0]: 월급 '%s'이면 나눌 돈 미리보기에 음수가 나오지 않는다", (raw) => {
     renderPlan();
     typeSalary(raw);
 
-    expect(preview().textContent).toBe("남는 돈 -원");
+    expect(preview().textContent).toBe("나눌 돈 -원");
     expect(preview().textContent).not.toMatch(/-\d/);
   });
 
-  it("AC-4[P0]: 월급 400000에 고정비 500000이면 '남는 돈 -원'이고 음수 금액은 없다", () => {
+  it("AC-4[P0]: 월급 400000에 고정비 500000이면 '나눌 돈 -원'이고 음수 금액은 없다", () => {
     seed({ ...planA, fixedCosts: [rent] });
     renderPlan();
     typeSalary("400000");
 
-    expect(preview().textContent).toBe("남는 돈 -원");
+    expect(preview().textContent).toBe("나눌 돈 -원");
     expect(preview().textContent).not.toMatch(/-\d/);
   });
 
@@ -270,7 +270,7 @@ describe("계획 짜기 화면 (/plan)", () => {
     expect(screen.getByText("월세")).toBeInTheDocument();
     expect(screen.getByText("통신비")).toBeInTheDocument();
     expect(screen.queryByText(EMPTY_FIXED_HINT)).toBeNull();
-    expect(preview().textContent).toBe("남는 돈 2,400,000원");
+    expect(preview().textContent).toBe("나눌 돈 2,400,000원");
 
     fireEvent.click(cta());
     const draft = submittedDraft();

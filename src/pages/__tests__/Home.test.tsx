@@ -82,7 +82,7 @@ describe("Home 히어로 — 체크에 바로 반응한다", () => {
     await waitFor(() => expect(filled()).toEqual(["saving"]));
     fireEvent.click(card.getByRole("switch", { name: "비상금 통장 이체 완료" }));
     await waitFor(() => expect(filled()).toEqual(["saving", "emergency"]));
-    expect(screen.getByRole("img", { name: "생활비 남음, 저축 옮김, 비상금 옮김, 여가 남음" })).toBeTruthy();
+    expect(screen.getByRole("img", { name: "이번 달 이체: 생활비 남음, 저축 옮김, 비상금 옮김, 여가 남음" })).toBeTruthy();
   });
 
   it("체크리스트 행마다 통장 배지(장식)가 있다", () => {
@@ -103,5 +103,42 @@ describe("Home 히어로 — 체크에 바로 반응한다", () => {
     expect(example.textContent).toContain("예시 · 월급 300만 원, 고정비 60만 원, 기본 5:3:1:1");
     expect(within(example).getAllByTestId("split-segment")).toHaveLength(5);
     expect(screen.getByText("통장별 금액을 정하고, 은행 앱에 붙여 넣고, 월급날마다 체크해요")).toBeTruthy();
+  });
+});
+
+describe("홈 세팅 넛지 — 고도화 0930 리뷰 수정", () => {
+  const SETUP_KEY = "paysplit:setup:v1";
+  // 시드 A 서명: 월급날 25 | 1,200,000 | 720,000 | 240,000 | 240,000
+  const SIG_A = "25|1200000|720000|240000|240000";
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 8, 29, 9));
+    localStorage.setItem(PLAN_KEY, JSON.stringify(planA));
+  });
+
+  it("일부만 복사했으면 '세팅표 4개 중 N개 복사했어요'로 말한다", () => {
+    localStorage.setItem(SETUP_KEY, JSON.stringify({ version: 1, signature: SIG_A, copiedKeys: ["living", "saving", "emergency"], copiedAt: TS }));
+    renderWithRouter(<Home />);
+    expect(screen.getByTestId("setup-nudge").textContent).toContain("세팅표 4개 중 3개 복사했어요");
+  });
+
+  it("복사한 금액과 지금 계획이 다르면 '계획이 바뀌었다'고 단정하지 않는다(저장 안 한 초안을 복사했을 수 있다)", () => {
+    localStorage.setItem(SETUP_KEY, JSON.stringify({ version: 1, signature: "25|1|2|3|4", copiedKeys: ["living"], copiedAt: TS }));
+    renderWithRouter(<Home />);
+    const nudge = screen.getByTestId("setup-nudge");
+    expect(nudge.textContent).toContain("은행에 넣은 금액과 지금 계획이 달라요");
+    expect(nudge.textContent).not.toContain("계획이 바뀌었어요");
+  });
+
+  it("'이미 넣었어요'를 누르면 넛지가 사라지고 지금 계획을 모두 넣은 것으로 기록한다", () => {
+    renderWithRouter(<Home />);
+    expect(screen.getByTestId("setup-nudge").textContent).toContain("은행 세팅 전이에요");
+    fireEvent.click(screen.getByRole("button", { name: "이미 넣었어요" }));
+    expect(screen.queryByTestId("setup-nudge")).toBeNull();
+    expect(JSON.parse(localStorage.getItem(SETUP_KEY)!)).toMatchObject({
+      signature: SIG_A,
+      copiedKeys: ["living", "saving", "emergency", "leisure"],
+    });
   });
 });

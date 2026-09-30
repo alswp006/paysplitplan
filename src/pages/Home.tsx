@@ -16,16 +16,20 @@ import { buildHomeHero } from '@/lib/homeHero';
 import { buildChecklist } from '@/lib/homeView';
 import { PRESETS } from '@/lib/plan';
 import { allocationSplit, checklistSplit, legendKinds } from '@/lib/split';
-import { BRAND, CARD_INSET, SURFACE } from '@/lib/theme';
-import { loadSetupState, setupNudge } from '@/lib/setupState';
+import { BRAND, CARD_INSET, SURFACE, TEXT_SUBTLE_ON_TINT } from '@/lib/theme';
+import { loadSetupState, markSetupDone, setupCopyProgress, setupNudge } from '@/lib/setupState';
 import { loadPlan, loadRecords } from '@/lib/storage';
-import type { SetupNudge } from '@/lib/types';
+import type { SetupNudge, SetupState } from '@/lib/types';
 
-// 은행 세팅을 아직 안 했거나(복사 기록 없음) 계획이 바뀌어 은행 금액도 바꿔야 할 때 히어로 아래 한 줄.
-const NUDGE_TEXT: Record<Exclude<SetupNudge, 'none'>, string> = {
-  notYet: '은행 세팅 전이에요 · 세팅표에서 금액을 복사해 자동이체에 붙여 넣어요',
-  changed: '계획이 바뀌었어요 · 은행 자동이체 금액도 바꿀 차례예요',
-};
+/**
+ * 히어로 아래 한 줄 — 은행 세팅을 아직 안 했거나(복사 기록 없음·일부만), 복사한 금액과 지금 계획이 다를 때.
+ * changed는 "계획이 바뀌었다"고 단정하지 않는다: 저장하지 않은 초안(받은 비율 등)을 복사해도 서명이 달라진다.
+ */
+function nudgeText(nudge: Exclude<SetupNudge, 'none'>, progress: { copied: number; total: number }): string {
+  if (nudge === 'changed') return '은행에 넣은 금액과 지금 계획이 달라요 · 세팅표에서 다시 복사해요';
+  if (progress.copied > 0) return `세팅표 ${progress.total}개 중 ${progress.copied}개 복사했어요 · 남은 통장도 은행 앱에 넣어요`;
+  return '은행 세팅 전이에요 · 세팅표에서 금액을 복사해 자동이체에 붙여 넣어요';
+}
 
 const TABS = [
   { label: '홈', path: '/', icon: <House size={22} aria-hidden /> },
@@ -51,7 +55,7 @@ export default function Home() {
   // 히어로가 체크 토글에 바로 반응하도록 기록을 여기서도 들고 있는다(쓰기는 ChecklistCard의 토글뿐).
   const [store, setStore] = useState(loadRecords);
   // 세팅표 복사 기록 — 복사는 결과 화면에서 하고, 돌아오면 홈이 다시 마운트되며 새로 읽는다.
-  const [setupState] = useState(loadSetupState);
+  const [setupState, setSetupState] = useState<SetupState | null>(loadSetupState);
 
   const top = <Top title={<Top.TitleParagraph>월급쪼개기</Top.TitleParagraph>} />;
 
@@ -107,6 +111,12 @@ export default function Home() {
   const today = getToday();
   const hero = buildHomeHero(plan, store, today);
   const nudge = setupNudge(plan, setupState);
+  const dismissNudge = () => {
+    if (!markSetupDone(plan)) return;
+    haptic('tickWeak');
+    logClick('setup_nudge_dismiss');
+    setSetupState(loadSetupState());
+  };
   // 시그니처 — 이번 달 통장 조각. 체크할 때마다 옮긴 통장이 채워진다(store는 토글 직후 갱신된다).
   const strip = checklistSplit(buildChecklist(plan, store, today).rows);
 
@@ -128,6 +138,15 @@ export default function Home() {
         extra={
           <>
             <SplitBar testId="split-strip" height={14} segments={strip.segments} ariaLabel={strip.ariaLabel} />
+            {/* 흐린 조각과 진한 조각의 뜻 — 범례 없이 두면 색 차이가 무엇을 말하는지 알 수 없었다. 막대의 이름이 같은 말을 하므로
+                스크린리더에는 숨긴다. 전부 채워졌으면 설명할 차이가 없으니 빼 둔다. */}
+            {strip.segments.every((seg) => seg.filled) ? null : (
+              <div aria-hidden data-testid="split-strip-caption" style={{ marginTop: 6 }}>
+                <Paragraph.Text typography="t7" color={TEXT_SUBTLE_ON_TINT}>
+                  이체 체크한 통장만 진하게 채워져요
+                </Paragraph.Text>
+              </div>
+            )}
             {nudge === 'none' ? null : (
               <>
                 <Spacing size={12} />
@@ -135,9 +154,15 @@ export default function Home() {
                   <span style={{ display: 'flex', paddingTop: 2, color: BRAND.accent }}>
                     <Landmark size={16} aria-hidden />
                   </span>
-                  <Paragraph.Text typography="t6" color="var(--adaptiveGrey700)">
-                    {NUDGE_TEXT[nudge]}
-                  </Paragraph.Text>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8 }}>
+                    <Paragraph.Text typography="t6" color={TEXT_SUBTLE_ON_TINT}>
+                      {nudgeText(nudge, setupCopyProgress(plan, setupState))}
+                    </Paragraph.Text>
+                    {/* 복사 없이 직접 자동이체를 걸었거나 손으로 옮기는 사람은 넛지를 끌 수 있어야 한다(영영 안 사라졌다). */}
+                    <Button variant="weak" size="small" onClick={dismissNudge}>
+                      이미 넣었어요
+                    </Button>
+                  </div>
                 </div>
               </>
             )}

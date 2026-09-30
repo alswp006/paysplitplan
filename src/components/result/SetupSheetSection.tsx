@@ -7,7 +7,14 @@ import { copyText, type CopyResult } from "@/lib/clipboard";
 import { formatWon } from "@/lib/format";
 import { buildSetupRows, buildSetupSheetText, setupSignature, transferDayLabel } from "@/lib/setup";
 import { markSetupCopied } from "@/lib/setupState";
-import { LIST_CARD_PADDING, SURFACE, TEXT_INSET_BOTTOM, TEXT_INSET_TOP } from "@/lib/theme";
+import {
+  LIST_CARD_PADDING,
+  SUBTLE_ON_TINT_ROW,
+  SURFACE,
+  TEXT_INSET_BOTTOM,
+  TEXT_INSET_TOP,
+  TEXT_SUBTLE_ON_TINT,
+} from "@/lib/theme";
 import type { PlanDraft } from "@/lib/types";
 
 const DENIED_TOAST = "클립보드 권한이 없어 복사하지 못했어요. 금액을 길게 눌러 복사해 주세요";
@@ -44,15 +51,16 @@ export function SetupSheetSection({ draft }: { draft: PlanDraft }) {
 
   const copyRow = async (index: number) => {
     const row = rows[index];
-    logClick("setup_copy_row");
     const result = await copyText(row.copyText);
+    // 결과와 함께 남긴다 — 누르기만 하고 권한 거부·실패로 끝난 복사를 성공과 구분해야 세팅표의 실제 쓰임을 셀 수 있다.
+    logClick("setup_copy_row", { result });
     if (result === "ok") markSetupCopied(signature, [row.key]);
     report(result, `${row.label} ${formatWon(row.amount)}을 복사했어요`);
   };
 
   const copyAll = async () => {
-    logClick("setup_copy_all");
     const result = await copyText(buildSetupSheetText(draft));
+    logClick("setup_copy_all", { result });
     if (result === "ok") markSetupCopied(signature, rows.map((r) => r.key));
     report(result, "세팅표를 복사했어요");
   };
@@ -62,10 +70,10 @@ export function SetupSheetSection({ draft }: { draft: PlanDraft }) {
     // (ListRow horizontalPadding="small" = 20px, 벤더 런타임 값 — 기본 medium은 24px라 한 줄이 어긋난다).
     <Card testId="setup-sheet" style={{ padding: LIST_CARD_PADDING, backgroundColor: SURFACE.sunken }}>
       <div style={TEXT_INSET_TOP}>
-        <Paragraph.Text typography="t4">은행 앱에 옮길 세팅표</Paragraph.Text>
+        <Paragraph.Text typography="t4" role="heading" aria-level={2}>은행 앱에 옮길 세팅표</Paragraph.Text>
         <Spacing size={4} />
-        <Paragraph.Text typography="t6" color="var(--adaptiveGrey600)">
-          {`자동이체나 모으기 통장에 금액을 붙여 넣어요 · 이체는 ${dayLabel}`}
+        <Paragraph.Text typography="t6" color={TEXT_SUBTLE_ON_TINT}>
+          {`${dayLabel} 자동이체에 금액을 붙여 넣어요`}
         </Paragraph.Text>
       </div>
       <Spacing size={8} />
@@ -77,12 +85,19 @@ export function SetupSheetSection({ draft }: { draft: PlanDraft }) {
             contents={
               // 이체일은 행마다 반복하지 않는다 — 모든 통장이 같은 날이고 바로 위 캡션이 말한다. 반복하면 360px에서
               // 아랫줄이 세 줄로 꺾였다(실측). 복사하는 세팅표 문자열에는 첫 줄에 이체일이 들어간다.
-              <ListRow.Texts type="2RowTypeA" top={row.label} bottom={`나눌 돈의 ${row.ratio}%`} />
+              <ListRow.Texts
+                type="2RowTypeA"
+                top={row.label}
+                bottom={`나눌 돈의 ${row.ratio}%`}
+                bottomProps={SUBTLE_ON_TINT_ROW}
+              />
             }
             // 금액 위 · 복사 버튼 아래로 쌓는다 — 가로로 두면 통장 배지까지 들어간 360px에서 "생활비 / 통장"처럼
             // 왼쪽 글자가 세 줄로 꺾였다(실측). 금액은 여전히 한 줄(nowrap)이다.
             right={
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+              // 가운데 정렬(벤더 기본)을 유지한다 — 위쪽 정렬을 실측해 보니 배지가 행 위로 떠 더 어수선했다. 간격을 4px로 줄여
+              // 금액·버튼 묶음이 왼쪽 두 줄과 위아래로 대칭에 가깝게 한다.
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
                 <Paragraph.Text typography="t5" style={{ userSelect: "text", whiteSpace: "nowrap" }}>
                   {formatWon(row.amount)}
                 </Paragraph.Text>

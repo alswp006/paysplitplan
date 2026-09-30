@@ -79,7 +79,7 @@ describe("summarizeGoal — 시드 B, 2026-09-29", () => {
 
   it("잔액 맞추기(3,000,000) 뒤에는 이번 달 체크를 두 번 세지 않는다 → 1.9개월치 · 2029년 3월", () => {
     const store = storeOf(record(PLAN_B, "2026-09", ["emergency"]));
-    const goal = adjustBalance(createGoal(6, today()), 3_000_000, today());
+    const goal = adjustBalance(createGoal(6, today()), 3_000_000, today(), true);
     expect(goal.baseMonth).toBe("2026-09");
     const s = summarizeGoal(goal, PLAN_B, store, today());
     expect(s.saved).toBe(3_000_000);
@@ -90,7 +90,7 @@ describe("summarizeGoal — 시드 B, 2026-09-29", () => {
   });
 
   it("baseBalance가 목표 이상이면 reached이고 reachMonth는 null", () => {
-    const goal = adjustBalance(createGoal(6, today()), 9_342_000, today());
+    const goal = adjustBalance(createGoal(6, today()), 9_342_000, today(), false);
     const s = summarizeGoal(goal, PLAN_B, EMPTY, today());
     expect(s.reached).toBe(true);
     expect(s.progress).toBe(1);
@@ -107,7 +107,7 @@ describe("summarizeGoal — 시드 B, 2026-09-29", () => {
 
   it("필수 지출이 0원이면 목표 0 · monthsCovered null(카드는 모은 금액만 보인다)", () => {
     const noEssential: SalaryPlan = { ...PLAN_B, fixedCosts: [], salary: 2_000_000, ratios: [0, 50, 25, 25] };
-    const s = summarizeGoal(adjustBalance(createGoal(3, today()), 100_000, today()), noEssential, EMPTY, today());
+    const s = summarizeGoal(adjustBalance(createGoal(3, today()), 100_000, today(), false), noEssential, EMPTY, today());
     expect(s).toMatchObject({ essential: 0, target: 0, monthsCovered: null, saved: 100_000, reached: false, reachMonth: null });
   });
 
@@ -194,5 +194,56 @@ describe("24개월 정리 — 지운 달의 비상금은 목표에 합쳐져 모
     expect(foldPrunedIntoGoal([["2024-07", record(PLAN_B, "2024-07", ["emergency"])]])).toBe(true);
     expect(setItem).toHaveBeenCalledTimes(0);
     setItem.mockRestore();
+  });
+});
+
+describe("잔액 맞추기 — 이번 달 이체 전후 (review 0930 MAJOR 2)", () => {
+  it("이번 달 비상금 체크 전에 잔액을 넣으면 baseMonth는 지난달 — 나중에 체크하면 그 달 금액이 더해지고 채우는 달은 늦어지지 않는다", () => {
+    const goal = adjustBalance(createGoal(6, today()), 3_000_000, today(), false);
+    expect(goal.baseMonth).toBe("2026-08");
+    const before = summarizeGoal(goal, PLAN_B, EMPTY, today());
+    expect(before).toMatchObject({ saved: 3_000_000, thisMonthAdded: 0, reachMonth: "2029-02" });
+
+    const after = summarizeGoal(goal, PLAN_B, storeOf(record(PLAN_B, "2026-09", ["emergency"])), today());
+    expect(after.saved).toBe(3_215_500);
+    expect(after.thisMonthAdded).toBe(215_500);
+    expect(after.reachMonth).toBe("2029-02");
+  });
+
+  it("기준 달이 이번 달이면(체크 뒤 잔액 맞추기) 체크를 풀어도 이번 달 이체를 다시 첫 이체로 세지 않는다", () => {
+    const goal = adjustBalance(createGoal(6, today()), 3_000_000, today(), true);
+    const checked = summarizeGoal(goal, PLAN_B, storeOf(record(PLAN_B, "2026-09", ["emergency"])), today());
+    const unchecked = summarizeGoal(goal, PLAN_B, EMPTY, today());
+    expect(checked.reachMonth).toBe("2029-03");
+    expect(unchecked.reachMonth).toBe("2029-03");
+  });
+});
+
+describe("snapshot 없는 기록 (review 0930 D-2) — 크래시 대신 모르는 금액은 0으로 센다", () => {
+  function noSnapshot(month: string): MonthRecord {
+    const r = record(PLAN_B, month, ["emergency"]) as Partial<MonthRecord>;
+    delete r.snapshot;
+    return r as MonthRecord;
+  }
+
+  it("summarizeGoal은 던지지 않고 snapshot 없는 달을 0원으로 센다", () => {
+    const goal = { ...createGoal(6, today()), baseMonth: "2026-07" };
+    const store = storeOf(noSnapshot("2026-08"), record(PLAN_B, "2026-09", ["emergency"]));
+    const s = summarizeGoal(goal, PLAN_B, store, today());
+    expect(s.saved).toBe(215_500);
+    expect(s.thisMonthAdded).toBe(215_500);
+  });
+
+  it("이번 달 기록에 snapshot이 없어도 thisMonthAdded는 0이고 던지지 않는다", () => {
+    const s = summarizeGoal(createGoal(6, today()), PLAN_B, storeOf(noSnapshot("2026-09")), today());
+    expect(s.saved).toBe(0);
+    expect(s.thisMonthAdded).toBe(0);
+  });
+
+  it("정리되는 달에 snapshot이 없어도 foldPrunedIntoGoal은 실패하지 않는다(정리가 매번 되돌려지지 않게)", () => {
+    saveGoal({ ...createGoal(6, today()), baseMonth: "2024-06", baseBalance: 0 });
+    expect(foldPrunedIntoGoal([["2024-07", noSnapshot("2024-07")]])).toBe(true);
+    expect(loadGoal()!.baseMonth).toBe("2024-07");
+    expect(loadGoal()!.baseBalance).toBe(0);
   });
 });

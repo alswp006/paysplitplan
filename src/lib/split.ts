@@ -39,7 +39,8 @@ export function checklistSplit(rows: Pick<ChecklistRow, "key" | "amount" | "chec
   const segments: SplitSegment[] = rows.map((r) => ({ key: r.key, value: r.amount, filled: r.checked }));
   return {
     segments,
-    ariaLabel: segments.map((s) => `${SPLIT_LABEL[s.key]} ${s.filled ? "옮김" : "남음"}`).join(", "),
+    // 주어를 붙인다 — "생활비 남음"만으로는 무엇이 남았는지 알 수 없다.
+    ariaLabel: `이번 달 이체: ${segments.map((s) => `${SPLIT_LABEL[s.key]} ${s.filled ? "옮김" : "남음"}`).join(", ")}`,
   };
 }
 

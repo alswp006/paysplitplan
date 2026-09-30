@@ -47,12 +47,20 @@ export function RatioBlock({
   };
 
   const preview = ratioSplit(ratios);
+  // 합계가 100%가 아니면 막대도 그 사실을 보여 준다 — 모자라면 남은 몫을 빈 조각으로, 넘치면 막대를 흐리게.
+  const previewLabel = sum === 100 ? preview.ariaLabel : `${preview.ariaLabel} · 합계 ${sum}%`;
 
   return (
     <div>
       {/* 비율 미리보기 — 칩·+/-를 누르면 바로 조각 폭이 바뀐다. 아래 비율 행(배지 + 이름)이 색의 뜻을 말한다. */}
-      <div style={{ padding: "0 20px" }}>
-        <SplitBar testId="ratio-preview-bar" height={12} segments={preview.segments} ariaLabel={preview.ariaLabel} />
+      <div style={{ padding: "0 20px", opacity: sum > 100 ? 0.35 : 1 }} data-over={sum > 100 ? "true" : undefined}>
+        <SplitBar
+          testId="ratio-preview-bar"
+          height={12}
+          segments={preview.segments}
+          remainder={sum < 100 ? 100 - sum : 0}
+          ariaLabel={previewLabel}
+        />
       </div>
       <Spacing size={16} />
       <Chip kind="select" wrap>

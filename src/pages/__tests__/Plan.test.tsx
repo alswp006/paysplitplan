@@ -1,6 +1,7 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { fireEvent, screen, within } from "@testing-library/react";
 import { mockAll, mockLocation } from "@/__tests__/__helpers__/mocks";
+import { Analytics } from "@apps-in-toss/web-framework";
 import { renderWithRouter } from "@/__tests__/__helpers__/test-utils";
 import Plan from "@/pages/Plan";
 import {
@@ -33,10 +34,10 @@ describe("planForm", () => {
     expect(validatePaydayInput("31")).toEqual({ value: 31, error: null });
   });
 
-  it("남는 돈 미리보기는 음수를 보여주지 않는다", () => {
-    expect(formatAvailablePreview("3000000", 600_000)).toBe("남는 돈 2,400,000원");
-    expect(formatAvailablePreview("400000", 500_000)).toBe("남는 돈 -원");
-    expect(formatAvailablePreview("abc", 0)).toBe("남는 돈 -원");
+  it("나눌 돈 미리보기는 음수를 보여주지 않는다", () => {
+    expect(formatAvailablePreview("3000000", 600_000)).toBe("나눌 돈 2,400,000원");
+    expect(formatAvailablePreview("400000", 500_000)).toBe("나눌 돈 -원");
+    expect(formatAvailablePreview("abc", 0)).toBe("나눌 돈 -원");
   });
 
   it("buildDraft는 유효할 때만 초안을 돌려주고 저장 메타 키가 없다", () => {
@@ -65,7 +66,7 @@ describe("Plan 화면 — 입력칸 접근성과 하단 안내", () => {
     fireEvent.click(screen.getByRole("button", { name: "여가 5% 줄이기" }));
     expect(screen.getAllByText("비율 합계를 100%로 맞춰주세요 (현재 95%)")).toHaveLength(1);
     expect(screen.getByText("비율 합계가 100%가 되면 결과를 볼 수 있어요")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "배분 결과 보기" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "세팅표 보기" })).toBeDisabled();
   });
 });
 
@@ -80,10 +81,22 @@ describe("Plan 화면 — 받은 비율 착지(/plan?r=)", () => {
 
     const banner = screen.getByTestId("shared-ratio-banner");
     expect(banner.textContent).toContain("받은 비율로 채웠어요");
-    expect(banner.textContent).toContain("생활비 40 · 저축 40 · 비상금 10 · 여가 10");
+    expect(banner.textContent).toContain("생활비 40% · 저축 40% · 비상금 10% · 여가 10%");
     expect(banner.textContent).toContain("월급과 고정비를 넣으면 금액이 나와요");
     expect(screen.getByRole("button", { name: "저축 집중 4:4:1:1", pressed: true })).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "월급" })).toHaveValue("");
+  });
+
+  it("받은 링크 노출(ratio_link_open)은 세션에 한 번만 센다 — 결과에서 돌아와 다시 마운트돼도 또 세지 않는다(review 0930)", () => {
+    // 이 파일은 Plan을 정적으로 불러 계측 래퍼가 실물이다 — SDK Analytics.impression 목 호출을 센다.
+    mockLocation.search = "?r=40-40-10-10";
+    const impression = vi.mocked(Analytics.impression);
+    impression.mockClear();
+    const first = renderWithRouter(<Plan />);
+    first.unmount();
+    renderWithRouter(<Plan />);
+    const opens = impression.mock.calls.filter((c) => (c[0] as { target?: string }).target === "ratio_link_open");
+    expect(opens).toHaveLength(1);
   });
 
   it("저장된 계획이 있으면 월급·월급날은 저장값, 비율만 받은 값이고 '저장하기 전까지 기존 계획은 그대로예요'", () => {

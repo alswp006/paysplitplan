@@ -22,14 +22,20 @@ export function ratioParam(r: Ratios): string {
   return r.join("-");
 }
 
-/** [40, 40, 10, 10] → "생활비 40 · 저축 40 · 비상금 10 · 여가 10" (공유 메시지·받은 비율 배너가 같은 줄을 쓴다) */
+/** [40, 40, 10, 10] → "생활비 40% · 저축 40% · 비상금 10% · 여가 10%" (공유 메시지·받은 비율 배너가 같은 줄을 쓴다) */
 export function ratioLine(r: Ratios): string {
-  return CATEGORY_ORDER.map((key, i) => `${CATEGORY_LABEL[key]} ${r[i]}`).join(" · ");
+  return ratioItems(r).join(" · ");
+}
+
+/** [40, 40, 10, 10] → ["생활비 40%", "저축 40%", "비상금 10%", "여가 10%"] — 화면은 항목 단위로 줄을 바꾼다("여가 / 10%" 금지). */
+export function ratioItems(r: Ratios): string[] {
+  // %를 붙인다 — "생활비 40"만 받은 사람은 40을 40만 원으로 읽을 수 있다.
+  return CATEGORY_ORDER.map((key, i) => `${CATEGORY_LABEL[key]} ${r[i]}%`);
 }
 
 /**
  * 공유 메시지 — 월급·금액은 싣지 않고 비율만 보낸다(받는 사람이 자기 월급으로 계산한다).
- * "월급쪼개기로 이렇게 나눠요\n생활비 40 · 저축 40 · 비상금 10 · 여가 10\n내 월급으로 계산해 보기"
+ * "월급쪼개기로 이렇게 나눠요\n생활비 40% · 저축 40% · 비상금 10% · 여가 10%\n내 월급으로 계산해 보기"
  */
 export function buildRatioShareMessage(r: Ratios): string {
   return `월급쪼개기로 이렇게 나눠요\n${ratioLine(r)}\n내 월급으로 계산해 보기`;

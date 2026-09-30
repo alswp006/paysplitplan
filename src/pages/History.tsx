@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Top, ListRow, Badge, Paragraph, Button, Spacing } from '@toss/tds-mobile';
 import { CalendarCheck, House, History as HistoryIcon } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { BrandIcon } from '@/components/BrandIcon';
 import { ScreenScaffold } from '@/components/ScreenScaffold';
 import { SummaryHero } from '@/components/SummaryHero';
 import { Card } from '@/components/Card';
@@ -10,13 +11,12 @@ import { MiniBar } from '@/components/MiniBar';
 import { AdSlot } from '@/components/AdSlot';
 import { EmptyState } from '@/components/StateView';
 import { FloatingTabBar } from '@/components/FloatingTabBar';
-import { logClick } from '@/lib/analytics';
+import { logClick, logImpression } from '@/lib/analytics';
 import { getToday, monthKey } from '@/lib/date';
 import { formatMonthLabel, formatWon } from '@/lib/format';
 import { withLiveCurrentMonth } from '@/lib/homeView';
 import { getStreaks, movedTotal } from '@/lib/insights';
 import { loadRecords, peekPlan } from '@/lib/storage';
-import { useImpressionRef } from '@/lib/useImpression';
 import { BRAND, CARD_INSET, INLINE_BADGE, LIST_CARD_PADDING } from '@/lib/theme';
 
 const TABS = [
@@ -24,15 +24,24 @@ const TABS = [
   { label: '기록', path: '/history', icon: <HistoryIcon size={22} aria-hidden /> },
 ];
 
-// 배너 광고 그룹 ID — 콘솔 발급값. 비어 있으면 배너가 뜰 수 없으니 노출 로그도 남기지 않는다.
+// 배너 광고 그룹 ID — 콘솔 발급값. 비어 있으면 AdSlot이 SDK를 부르지 않는다(빈 자리).
 const BANNER_AD_GROUP_ID = import.meta.env.VITE_TOSS_AD_GROUP_ID ?? '';
 
+/**
+ * 기록 탭 배너. 노출 로그는 SDK가 "실제로 노출됐다"고 알릴 때(onAdImpression) 한 번만 남긴다 — 뷰포트 관찰로 세면
+ * 광고가 없어 높이 0인 빈 자리도 "보였다"로 집계됐다(0px 요소는 교차율 1로 잡힌다).
+ */
 function HistoryBanner() {
-  const ref = useImpressionRef('history_banner', BANNER_AD_GROUP_ID !== '');
+  const logged = useRef(false);
   return (
-    <div ref={ref}>
-      <AdSlot adGroupId={BANNER_AD_GROUP_ID} />
-    </div>
+    <AdSlot
+      adGroupId={BANNER_AD_GROUP_ID}
+      onImpression={() => {
+        if (logged.current) return;
+        logged.current = true;
+        logImpression('history_banner');
+      }}
+    />
   );
 }
 
@@ -54,7 +63,11 @@ export default function History() {
       <ScreenScaffold top={top} bottom={tabBar} surface="grouped">
         <EmptyState
           fill
-          icon={<CalendarCheck size={48} color="var(--adaptiveGrey500)" aria-hidden />}
+          icon={
+            <BrandIcon>
+              <CalendarCheck size={36} aria-hidden />
+            </BrandIcon>
+          }
           title="아직 기록이 없어요"
           description="월급날 통장별로 옮기고 체크하면 여기에 쌓여요"
           action={

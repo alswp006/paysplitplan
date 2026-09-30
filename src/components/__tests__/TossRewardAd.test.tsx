@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { act, fireEvent, render, screen } from "@testing-library/react";
@@ -37,6 +37,13 @@ function renderGate(props: { adGroupId?: string; onRewarded?: () => void; timeou
 beforeEach(() => {
   load.mockClear();
   show.mockClear();
+  // 한 번짜리 반환값(mockReturnValueOnce)이 남아 다음 테스트로 새지 않게 지원 여부 목을 기본(true)으로 되돌린다.
+  vi.mocked(loadFullScreenAd.isSupported).mockReset().mockReturnValue(true);
+  vi.mocked(showFullScreenAd.isSupported).mockReset().mockReturnValue(true);
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("TossRewardAd — 보상형 광고 게이트(벤더 모양)", () => {
@@ -177,6 +184,39 @@ describe("TossRewardAd — 보상형 광고 게이트(벤더 모양)", () => {
       vi.advanceTimersByTime(1001);
     });
     expect(screen.getByText(CHILD)).toBeInTheDocument();
+  });
+
+  it("9-2. show가 requested만 내고 멈추면(호스트 멈춤) timeoutMs 뒤에 연다 — requested는 타임아웃을 풀지 않는다(review 0930)", () => {
+    vi.useFakeTimers();
+    const onRewarded = vi.fn();
+    show.mockImplementationOnce((p: ShowParams) => {
+      p.onEvent({ type: "requested" });
+      return vi.fn();
+    });
+    renderGate({ timeoutMs: 1000, onRewarded });
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "광고 보고 더 보기" }));
+    expect(screen.getByRole("button", { name: "광고를 보여 주고 있어요" })).toBeDisabled();
+    act(() => {
+      vi.advanceTimersByTime(1001);
+    });
+    expect(screen.getByText(CHILD)).toBeInTheDocument();
+    expect(onRewarded).toHaveBeenCalledTimes(0);
+  });
+
+  it("9-3. 닫은 뒤에 보상 이벤트가 늦게 와도(dismissed → userEarnedReward) 연다", async () => {
+    const onRewarded = vi.fn();
+    show.mockImplementationOnce((p: ShowParams) => {
+      for (const type of ["requested", "show", "impression", "dismissed"] as const) p.onEvent({ type });
+      p.onEvent({ type: "userEarnedReward", data: { unitType: "reward", unitAmount: 1 } });
+      return vi.fn();
+    });
+    renderGate({ onRewarded });
+    fireEvent.click(await screen.findByRole("button", { name: "광고 보고 더 보기" }));
+    expect(await screen.findByText(CHILD)).toBeInTheDocument();
+    expect(onRewarded).toHaveBeenCalledTimes(1);
   });
 
   it("10. 소스에 slotId·as Parameters·reward-ad.css가 없다", () => {

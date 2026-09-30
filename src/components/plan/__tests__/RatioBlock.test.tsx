@@ -43,6 +43,24 @@ describe("ratioForm", () => {
   });
 });
 
+describe("비율 미리보기 — 합계가 100%가 아니면 막대도 말한다 (review 0930)", () => {
+  it("합계 90%면 끝에 남은 몫(10) 빈 조각이 붙고 이름에 합계가 들어간다", () => {
+    render(<RatioBlock ratios={[40, 30, 10, 10]} presetId="custom" available={2400000} onChange={vi.fn()} />);
+    const bar = screen.getByTestId("ratio-preview-bar");
+    expect(bar.getAttribute("aria-label")).toContain("합계 90%");
+    const segs = Array.from(bar.querySelectorAll('[data-testid="split-segment"]'));
+    expect(segs.map((s) => s.getAttribute("data-key"))).toEqual(["living", "saving", "emergency", "leisure", "rest"]);
+    expect((segs[4] as HTMLElement).style.flexGrow).toBe("10");
+  });
+
+  it("합계 110%면 빈 조각 없이 막대를 흐리게 둔다", () => {
+    render(<RatioBlock ratios={[60, 30, 10, 10]} presetId="custom" available={2400000} onChange={vi.fn()} />);
+    const bar = screen.getByTestId("ratio-preview-bar");
+    expect(bar.querySelector('[data-key="rest"]')).toBeNull();
+    expect(bar.parentElement?.getAttribute("data-over")).toBe("true");
+  });
+});
+
 describe("RatioBlock 햅틱", () => {
   it("칩과 −/+ 탭에 tickWeak 햅틱이 울린다", () => {
     const onChange = vi.fn();

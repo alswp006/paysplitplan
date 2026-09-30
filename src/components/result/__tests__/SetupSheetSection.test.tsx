@@ -37,7 +37,7 @@ describe("은행 세팅표 (결과 화면 무료 층)", () => {
     renderSheet();
     const sheet = screen.getByTestId("setup-sheet");
     expect(sheet.textContent).toContain("은행 앱에 옮길 세팅표");
-    expect(sheet.textContent).toContain("이체는 매달 26일");
+    expect(sheet.textContent).toContain("매달 26일 자동이체에 금액을 붙여 넣어요");
 
     const rows = within(sheet).getAllByTestId("allocation-card");
     const expected: Array<[string, string]> = [
@@ -68,7 +68,7 @@ describe("은행 세팅표 (결과 화면 무료 층)", () => {
       expect(mockOpenToast).toHaveBeenCalledWith("저축 통장 720,000원을 복사했어요", { higherThanCTA: true }),
     );
     expect(sdkCopy).toHaveBeenCalledWith("720000");
-    expect(mockLogClick).toHaveBeenCalledWith("setup_copy_row");
+    expect(mockLogClick).toHaveBeenCalledWith("setup_copy_row", { result: "ok" });
     expect(loadSetupState()?.copiedKeys).toEqual(["saving"]);
   });
 
@@ -80,7 +80,7 @@ describe("은행 세팅표 (결과 화면 무료 층)", () => {
     expect(sdkCopy).toHaveBeenCalledWith(
       "월급쪼개기 세팅표 · 매달 26일 이체\n생활비 통장 1,200,000원\n저축 통장 720,000원\n비상금 통장 240,000원\n여가 통장 240,000원",
     );
-    expect(mockLogClick).toHaveBeenCalledWith("setup_copy_all");
+    expect(mockLogClick).toHaveBeenCalledWith("setup_copy_all", { result: "ok" });
     expect(loadSetupState()?.copiedKeys).toEqual(["living", "saving", "emergency", "leisure"]);
   });
 

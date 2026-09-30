@@ -39,7 +39,7 @@ export const mockDialog = {
 // 목을 벤더 모양으로 고쳐라 — 소스를 목에 맞춰 벤더 API에서 멀어지게 바꾸지 마라(목을 오용에 맞추거나
 // 앱을 목에 맞추면 실제 토스에서만 깨지는 앱이 초록으로 나간다).
 // 자주 틀리는 네 가지:
-//  · Chip은 칩 **그룹**(div role=group)이다 — 칩 하나는 ChipItem(button, 선택 상태 = aria-pressed).
+//  · Chip은 칩 **그룹**(div role=group)이다 — 칩 하나는 ChipItem(button). 벤더는 aria-pressed를 달지 않는다 — 앱이 넘긴 것만 있다.
 //  · BottomSheet는 제목을 header, 버튼을 cta 슬롯으로 받는다(title prop 없음).
 //  · TextField 라벨은 labelOption 기본 'appear'라 빈 칸에서 **숨는다**(hidden). 항상 보이려면 'sustain'.
 //  · AlertDialog는 닫기 버튼을 그리지 않는다 — 누를 수 있는 것은 alertButton뿐이다.
@@ -435,11 +435,13 @@ export function mockTds() {
       Chip: ({ children, kind, shape, size, variant, margin, wrap, withColorBackground, ...props }: any) =>
         h("div", { role: "group", "data-kind": kind ?? "select", ...props }, children),
 
-      // ChipItem — 눌리는 칩 하나. 선택 상태는 aria-pressed로 드러난다(getByRole("button", { pressed: true })).
+      // ChipItem — 눌리는 칩 하나. 벤더(2.5.1 런타임)는 선택 상태를 **색으로만** 그리고 aria-pressed를 달지 않는다 —
+      // 목도 달지 않는다(목이 달아 주면 앱이 aria-pressed를 빼도 pressed 단언이 초록으로 남는다). 앱이 넘긴 div 속성
+      // (aria-pressed 포함)은 벤더처럼 버튼으로 펼친다. 선택 표시는 data-selected로만 남긴다.
       ChipItem: ({ children, selected, disabled, redDot, redDotAriaLabel, left, right, onClick, ...props }: any) =>
         h(
           "button",
-          { type: "button", "aria-pressed": !!selected, "data-selected": selected ? "true" : undefined, disabled: disabled || undefined, onClick, ...props },
+          { type: "button", "data-selected": selected ? "true" : undefined, disabled: disabled || undefined, onClick, ...props },
           slot("left", left),
           children,
           slot("right", right),

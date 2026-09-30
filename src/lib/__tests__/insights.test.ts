@@ -23,7 +23,7 @@ describe("getBracketScenarios", () => {
   });
 
   it("입력 상한(1억)을 넘는 구간과, 내 월급이 아닌데 저축이 0원인 구간은 뺀다", () => {
-    // 월급 1억 · 고정비 99,999,999 → 남는 돈 1원: 위 두 구간은 1억 초과, 아래 두 구간은 고정비 이하
+    // 월급 1억 · 고정비 99,999,999 → 나눌 돈 1원: 위 두 구간은 1억 초과, 아래 두 구간은 고정비 이하
     const extreme = getBracketScenarios({ salary: 100_000_000, fixedCosts: cost(99_999_999), ratios: [50, 30, 10, 10] });
     expect(extreme.map((r) => r.salary)).toEqual([100_000_000]);
     expect(extreme[0]).toMatchObject({ isCurrent: true, saving: 0 });

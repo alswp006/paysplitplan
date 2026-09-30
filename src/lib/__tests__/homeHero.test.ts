@@ -108,6 +108,17 @@ describe("buildHomeHero — 월급날 히어로 상태", () => {
     expect(h).toMatchObject({ phase: "waiting", value: "D-1", caption: "9월 30일 월급날" });
   });
 
+  it("월급날이 지난달 말일이면 1일(세팅표의 '월급날 다음 날')은 대기가 아니라 inProgress다(review 0930)", () => {
+    // payday 31: 9월은 30일로 당겨지고, 이체일인 10월 1일에 홈이 'D-30'을 세면 세팅표와 어긋난다.
+    const oct1 = buildHomeHero({ ...planA, payday: 31 }, store(), at(10, 1));
+    expect(oct1).toMatchObject({ phase: "inProgress", label: "10월 이체", value: "4개 남았어요", caption: "10월 31일 월급날까지 D-30" });
+    // payday 30 · 2027년 3월 1일(2월 말일 28일이 월급날) → inProgress
+    const mar1 = buildHomeHero({ ...planA, payday: 30 }, store(), new Date(2027, 2, 1, 9));
+    expect(mar1.phase).toBe("inProgress");
+    // payday 25의 1일은 그대로 대기
+    expect(buildHomeHero(planA, store(), at(10, 1)).phase).toBe("waiting");
+  });
+
   it("9월 2/4(저축·비상금) → '2개 남았어요', filledKeys = ['saving','emergency']", () => {
     const h = buildHomeHero(planA, store(rec("2026-09", ["saving", "emergency"])), at(9, 29));
     expect(h.value).toBe("2개 남았어요");

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Paragraph } from "@toss/tds-mobile";
-import { BRAND, CATEGORY_COLOR, SPLIT_LABEL, type SplitKind } from "@/lib/theme";
+import { BRAND, CATEGORY_COLOR, SPLIT_LABEL, TEXT_SUBTLE_ON_TINT, type SplitKind } from "@/lib/theme";
 import type { SplitSegment } from "@/lib/split";
 
 // 조각 모양은 lib/split.ts가 원천이다(막대 모델을 만드는 순수 함수와 같은 파일) — 컴포넌트 쪽 이름으로도 내보낸다.
@@ -36,12 +36,18 @@ export function SplitBar({
   ariaLabel,
   testId,
   animate = false,
+  remainder = 0,
 }: {
   segments: SplitSegment[];
   height?: number;
   ariaLabel: string;
   testId?: string;
   animate?: boolean;
+  /**
+   * 아직 나누지 않은 몫(조각과 같은 단위). 0보다 크면 막대 끝에 빈 회색 조각으로 그린다 — 비율 합계가 100% 미만인데
+   * 네 조각이 막대를 꽉 채우면 "다 나눴다"로 읽혔다(바로 아래 빨간 오류 문구와 모순).
+   */
+  remainder?: number;
 }) {
   const [settled, setSettled] = useState(() => !animate || skipMotion());
 
@@ -56,6 +62,7 @@ export function SplitBar({
   }, []);
 
   const visible = segments.filter((s) => s.value > 0);
+  const rest = remainder > 0 ? remainder : 0;
   const radius = height / 2;
 
   return (
@@ -68,13 +75,13 @@ export function SplitBar({
         gap: GAP,
         height,
         width: "100%",
-        borderRadius: visible.length === 0 ? radius : undefined,
-        backgroundColor: visible.length === 0 ? "var(--adaptiveGrey100)" : undefined,
+        borderRadius: visible.length === 0 && rest === 0 ? radius : undefined,
+        backgroundColor: visible.length === 0 && rest === 0 ? "var(--adaptiveGrey100)" : undefined,
       }}
     >
       {visible.map((s, i) => {
         const first = i === 0;
-        const last = i === visible.length - 1;
+        const last = i === visible.length - 1 && rest === 0;
         const delay = i * STAGGER_MS;
         return (
           <div
@@ -99,6 +106,23 @@ export function SplitBar({
           />
         );
       })}
+      {rest > 0 ? (
+        <div
+          data-testid="split-segment"
+          data-key="rest"
+          data-filled="false"
+          style={{
+            flexGrow: rest,
+            flexBasis: 0,
+            minWidth: MIN_SEGMENT,
+            backgroundColor: "var(--adaptiveGrey200)",
+            borderTopLeftRadius: visible.length === 0 ? radius : 0,
+            borderBottomLeftRadius: visible.length === 0 ? radius : 0,
+            borderTopRightRadius: radius,
+            borderBottomRightRadius: radius,
+          }}
+        />
+      ) : null}
     </div>
   );
 }
@@ -106,14 +130,15 @@ export function SplitBar({
 /** 막대 범례 — 색 점 + 라벨(금액 없음). 막대의 색에 텍스트 뜻을 붙인다. 0인 조각은 뺀다. */
 export function SplitLegend({ kinds, testId }: { kinds: SplitKind[]; testId?: string }) {
   return (
-    <div data-testid={testId} style={{ display: "flex", flexWrap: "wrap", columnGap: 12, rowGap: 4 }}>
+    // aria-hidden — 막대(role=img)의 이름이 같은 조각 이름을 이미 읽는다. 스크린리더가 두 번 듣지 않게.
+    <div aria-hidden data-testid={testId} style={{ display: "flex", flexWrap: "wrap", columnGap: 12, rowGap: 4 }}>
       {kinds.map((k) => (
         <span key={k} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
           <span
             aria-hidden
             style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: CATEGORY_COLOR[k], flexShrink: 0 }}
           />
-          <Paragraph.Text typography="t7" color="var(--adaptiveGrey600)">
+          <Paragraph.Text typography="t7" color={TEXT_SUBTLE_ON_TINT}>
             {SPLIT_LABEL[k]}
           </Paragraph.Text>
         </span>

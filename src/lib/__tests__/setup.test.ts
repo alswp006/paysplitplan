@@ -40,6 +40,12 @@ describe("세팅표", () => {
     expect(text).not.toContain("여가");
   });
 
+  it("생활비 0%면 내림 잔액(1원) 행을 세팅표에 넣지 않는다 — 몇 원짜리 자동이체를 시키지 않는다(review 0930)", () => {
+    const draft = { ...SEED_B, fixedCosts: [], salary: 3_000_001, ratios: [0, 50, 25, 25] as PlanDraft["ratios"] };
+    expect(buildSetupRows(draft).map((r) => r.key)).toEqual(["saving", "emergency", "leisure"]);
+    expect(buildSetupSheetText(draft)).not.toContain("생활비");
+  });
+
   it("행의 복사 값은 콤마 없는 숫자만이다(시드 B 저축 '862000')", () => {
     const rows = buildSetupRows(SEED_B);
     expect(rows.map((r) => r.key)).toEqual(["living", "saving", "emergency", "leisure"]);

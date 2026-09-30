@@ -62,7 +62,7 @@ describe("전체 흐름 (광고 env 비어 있음)", () => {
     fireEvent.change(within(sheet).getByLabelText("금액"), { target: { value: "600,000" } });
     fireEvent.click(within(sheet).getByRole("button", { name: "추가" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    fireEvent.click(screen.getByRole("button", { name: "배분 결과 보기" }));
+    fireEvent.click(screen.getByRole("button", { name: "세팅표 보기" }));
 
     // ── 3. /result: 무료 층은 게이트 밖에서 바로, 잠금 층은 슬롯 ID가 없어 게이트가 자동으로 열린다
     const freeTier = await screen.findByTestId("free-tier");

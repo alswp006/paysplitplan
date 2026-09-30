@@ -108,12 +108,15 @@ Imperative API with callback. React wrappers are NOT in the SDK:
 ```typescript
 import { loadFullScreenAd, showFullScreenAd } from '@apps-in-toss/web-framework';
 
-// For reward/interstitial ads
-const slotId = import.meta.env.VITE_TOSS_AD_SLOT_ID;   // 콘솔 발급값 — 리터럴 금지
-if (!slotId) return;                                    // 값이 없으면 광고 영역을 렌더하지 않는다
-loadFullScreenAd({ slotId, onEvent: (e) => { /* loaded */ }, onError: (err) => {} });
-showFullScreenAd({ slotId, onEvent: (e) => { /* rewarded/dismissed */ }, onError: (err) => {} });
+// For reward/interstitial ads — web-framework 3.6.0 .d.ts 모양: { options: { adGroupId }, onEvent, onError } → 구독 해제 함수
+// (이 앱: env 이름은 옛 VITE_TOSS_AD_SLOT_ID 그대로지만 담는 값은 보상형 광고 그룹 ID다 — src/pages/Result.tsx 주석)
+const adGroupId = import.meta.env.VITE_TOSS_AD_SLOT_ID;   // 콘솔 발급값 — 리터럴 금지
+if (!adGroupId) return;                                    // 값이 없으면 게이트를 열어 둔다(fail-open)
+const unsubLoad = loadFullScreenAd({ options: { adGroupId }, onEvent: (e) => { /* e.type === 'loaded' */ }, onError: (err) => {} });
+const unsubShow = showFullScreenAd({ options: { adGroupId }, onEvent: (e) => { /* 'userEarnedReward'일 때만 보상 · 'dismissed' · 'failedToShow' */ }, onError: (err) => {} });
+// 최상위 slotId·'rewarded' 이벤트는 SDK에 없다(최상위 키는 런타임이 버린다). 언마운트 때 unsubLoad?.() · unsubShow?.()
 ```
+이 앱은 이미 `src/components/TossRewardAd.tsx`에 가드·타임아웃·재시도까지 구현돼 있다 — 새로 만들지 말고 그 컴포넌트를 쓴다.
 Banner: `TossAds.initialize({})` then `TossAds.attachBanner(adGroupId, targetEl, options?)` returning `{ destroy }`. All methods expose `.isSupported()`. (NOT `loadAdMob` / `showAdMob` — those don't exist in the SDK.)
 
 **If you need a React gate component (e.g., "watch ad before seeing result"), build it in `src/components/` yourself using the imperative API above.** Do NOT import `TossRewardAd` or `AdSlot` from the SDK — they don't exist.

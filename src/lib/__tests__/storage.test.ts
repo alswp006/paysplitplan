@@ -313,6 +313,19 @@ describe("데이터를 잃지 않게 — 백업·읽기 전용·원문 보존", 
     expect(raw.records.note).toBe("keep-me");
   });
 
+  it("정리로 지워지는 달에 무효 원문이 있으면 원문 전체를 :bak에 먼저 복사한다(review 0930)", () => {
+    const records: Record<string, unknown> = { "2024-01": { month: "2024-01", rate: "50" } };
+    for (let i = 1; i < 24; i++) {
+      const month = `${2024 + Math.floor(i / 12)}-${String((i % 12) + 1).padStart(2, "0")}`;
+      records[month] = { ...record, id: `r${i}`, month };
+    }
+    const before = JSON.stringify({ version: 1, records });
+    localStorage.setItem(RECORDS_KEY, before);
+    expect(writeMonthRecord({ ...record, month: "2026-01", id: "r24" } as MonthRecord)).toEqual({ ok: true });
+    expect(JSON.parse(localStorage.getItem(RECORDS_KEY)!).records["2024-01"]).toBeUndefined();
+    expect(localStorage.getItem(RECORDS_BACKUP_KEY)).toBe(before);
+  });
+
   it("pruneMonths는 지운 달을 [달, 원문]으로 돌려주고 달 형식이 아닌 키는 건드리지 않는다", () => {
     const records: Record<string, unknown> = { "2026-01": 1, "2026-02": 2, "2026-03": 3, extra: "x", "2026-13": "bad" };
     expect(pruneMonths(records, 2)).toEqual([["2026-01", 1]]);

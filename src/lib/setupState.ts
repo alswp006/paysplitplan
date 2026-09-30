@@ -69,3 +69,26 @@ export function setupNudge(
   const eligible = buildSetupRows(plan).map((row) => row.key);
   return eligible.every((k) => state.copiedKeys.includes(k)) ? "none" : "notYet";
 }
+
+/**
+ * 지금 계획의 세팅표 중 몇 통장을 복사했나(서명이 같을 때만 센다 — 다르면 0). 홈 넛지가 "4개 중 3개"를 말한다.
+ */
+export function setupCopyProgress(
+  plan: Pick<PlanDraft, "salary" | "fixedCosts" | "ratios" | "payday">,
+  state: SetupState | null,
+): { copied: number; total: number } {
+  const eligible = buildSetupRows(plan).map((row) => row.key);
+  if (!state || state.signature !== setupSignature(plan)) return { copied: 0, total: eligible.length };
+  return { copied: eligible.filter((k) => state.copiedKeys.includes(k)).length, total: eligible.length };
+}
+
+/**
+ * "이미 은행에 넣었어요" — 복사하지 않고 직접 자동이체를 걸었거나 손으로 옮기는 사용자가 넛지를 끈다.
+ * 지금 계획의 모든 통장을 복사한 것으로 기록한다(계획 금액이 바뀌면 서명이 달라져 넛지가 다시 나온다).
+ */
+export function markSetupDone(plan: Pick<PlanDraft, "salary" | "fixedCosts" | "ratios" | "payday">): boolean {
+  return markSetupCopied(
+    setupSignature(plan),
+    buildSetupRows(plan).map((row) => row.key),
+  );
+}

@@ -4,7 +4,7 @@ import { generateHapticFeedback } from "@apps-in-toss/web-framework";
 import { Card } from "@/components/Card";
 import { CARD_INSET } from "@/lib/theme";
 import { logClick } from "@/lib/analytics";
-import { getToday } from "@/lib/date";
+import { getToday, monthKey } from "@/lib/date";
 import { formatAmountRaw, formatMonthLabel, formatWon, parseAmountInput } from "@/lib/format";
 import {
   GOAL_BALANCE_MAX,
@@ -23,8 +23,10 @@ import type { EmergencyGoal, GoalMonths, RecordStore, SalaryPlan } from "@/lib/t
 
 // 맨 텍스트만 있는 카드 — 패딩 20이면 제목이 x = 16 + 20 = 36px 정렬선에 선다(체크리스트 제목·배지와 같은 선).
 const GOAL_CARD_STYLE = { padding: CARD_INSET } as const;
-const SAVE_FAIL_TOAST = "저장 공간이 부족해 저장하지 못했어요";
-const BALANCE_HELP = "이번 달 이체까지 포함한 금액이에요";
+const SAVE_FAIL_TOAST = "목표를 저장하지 못했어요. 잠시 뒤 다시 눌러 주세요";
+// 잔액을 이번 달 이체 전으로 볼지 후로 볼지는 이번 달 비상금 체크가 정한다(goal.adjustBalance) — 안내도 그 기준을 말한다.
+const BALANCE_HELP_CHECKED = "이번 달 이체까지 들어간 지금 잔액으로 저장해요";
+const BALANCE_HELP_UNCHECKED = "이번 달 이체 전 잔액으로 저장해요. 이미 옮겼다면 이체 완료를 먼저 켜 주세요";
 
 function haptic(type: "tickWeak" | "success") {
   try {
@@ -43,7 +45,17 @@ function validateBalance(raw: string): { value: number; error: string | null } {
   return { value: parsed.value, error: null };
 }
 
-function BalanceSheet({ open, onClose, onSave }: { open: boolean; onClose: () => void; onSave: (balance: number) => void }) {
+function BalanceSheet({
+  open,
+  help,
+  onClose,
+  onSave,
+}: {
+  open: boolean;
+  help: string;
+  onClose: () => void;
+  onSave: (balance: number) => void;
+}) {
   const [raw, setRaw] = useState("");
   const [touched, setTouched] = useState(false);
   const check = validateBalance(raw);
@@ -83,7 +95,7 @@ function BalanceSheet({ open, onClose, onSave }: { open: boolean; onClose: () =>
             setTouched(true);
             setRaw(formatAmountRaw(e.target.value));
           }}
-          help={errorShown ? (check.error ?? undefined) : BALANCE_HELP}
+          help={errorShown ? (check.error ?? undefined) : help}
           hasError={errorShown}
         />
       </div>
@@ -101,6 +113,16 @@ export function EmergencyGoalCard({ plan, store }: { plan: SalaryPlan; store: Re
   const [goal, setGoal] = useState<EmergencyGoal | null>(() => loadGoal());
   const [sheetOpen, setSheetOpen] = useState(false);
 
+  // 기록이 바뀔 때마다(체크 토글) 저장된 목표를 다시 읽는다 — 24개월 정리가 지운 달의 비상금을 목표(baseBalance)에
+  // 합쳐 두는데(storage.writeMonthRecord → goal.foldPrunedIntoGoal), 메모리의 낡은 사본으로 화면을 그리거나 그 사본을
+  // 다시 저장하면 합친 금액이 영영 사라진다.
+  useEffect(() => {
+    setGoal((prev) => {
+      const fresh = loadGoal();
+      return JSON.stringify(fresh) === JSON.stringify(prev) ? prev : fresh;
+    });
+  }, [store]);
+
   const persist = (next: EmergencyGoal): boolean => {
     const result = saveGoal(next);
     if (!result.ok) {
@@ -111,7 +133,7 @@ export function EmergencyGoalCard({ plan, store }: { plan: SalaryPlan; store: Re
     return true;
   };
 
-  const title = <Paragraph.Text typography="t4">비상금 목표</Paragraph.Text>;
+  const title = <Paragraph.Text typography="t4" role="heading" aria-level={2}>비상금 목표</Paragraph.Text>;
 
   if (!goal) {
     const { fixedTotal, living, essential } = essentialOf(plan);
@@ -152,19 +174,23 @@ export function EmergencyGoalCard({ plan, store }: { plan: SalaryPlan; store: Re
     );
   }
 
-  const s = summarizeGoal(goal, plan, store, getToday());
+  const today = getToday();
+  const s = summarizeGoal(goal, plan, store, today);
+  const checkedThisMonth = store.records[monthKey(today)]?.checked?.emergency === true;
+  // 쓰기는 항상 저장소의 최신 목표 위에서 한다(메모리 사본이 정리 합산보다 낡았을 수 있다).
+  const latest = (): EmergencyGoal => loadGoal() ?? goal;
 
   const changeMonths = (v: string) => {
     const months = Number(v);
     if (!isGoalMonths(months) || months === goal.months) return;
-    if (persist(withMonths(goal, months))) {
+    if (persist(withMonths(latest(), months))) {
       haptic("tickWeak");
       logClick("goal_months");
     }
   };
 
   const saveBalance = (balance: number) => {
-    if (persist(adjustBalance(goal, balance, getToday()))) {
+    if (persist(adjustBalance(latest(), balance, getToday(), checkedThisMonth))) {
       haptic("success");
       logClick("goal_balance_adjust");
       setSheetOpen(false);
@@ -207,6 +233,8 @@ export function EmergencyGoalCard({ plan, store }: { plan: SalaryPlan; store: Re
             size="normal"
             color="var(--adaptivePurple500)"
             aria-label="비상금 목표 진행률"
+            // 벤더 기본 aria-valuetext는 progress×100 원값("15.925…%")이라 읽기 어렵다 — 정수 %로 덮는다.
+            aria-valuetext={`목표의 ${Math.floor(s.progress * 100)}%`}
           />
         </>
       ) : null}
@@ -227,16 +255,25 @@ export function EmergencyGoalCard({ plan, store }: { plan: SalaryPlan; store: Re
       {s.target > 0 ? (
         <>
           <Spacing size={16} />
-          <SegmentedControl size="small" value={String(goal.months)} onChange={changeMonths}>
-            {GOAL_MONTH_OPTIONS.map((m) => (
-              <SegmentedControl.Item key={m} value={String(m)}>
-                {`${m}개월`}
-              </SegmentedControl.Item>
-            ))}
-          </SegmentedControl>
+          {/* 벤더 SegmentedControl은 좌우 24px 안쪽 여백을 갖는다 — 감싸개에서 되돌려 트랙이 카드 정렬선(x 36px)에 서게 한다.
+              감싸개 role=group + aria-label: 벤더 라디오 묶음에는 이름이 없다. */}
+          <div role="group" aria-label="비상금 목표 기간" style={{ margin: "0 -24px" }}>
+            <SegmentedControl size="small" value={String(goal.months)} onChange={changeMonths}>
+              {GOAL_MONTH_OPTIONS.map((m) => (
+                <SegmentedControl.Item key={m} value={String(m)}>
+                  {`${m}개월치`}
+                </SegmentedControl.Item>
+              ))}
+            </SegmentedControl>
+          </div>
         </>
       ) : null}
-      <BalanceSheet open={sheetOpen} onClose={() => setSheetOpen(false)} onSave={saveBalance} />
+      <BalanceSheet
+        open={sheetOpen}
+        help={checkedThisMonth ? BALANCE_HELP_CHECKED : BALANCE_HELP_UNCHECKED}
+        onClose={() => setSheetOpen(false)}
+        onSave={saveBalance}
+      />
     </Card>
   );
 }

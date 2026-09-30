@@ -25,7 +25,7 @@ beforeEach(() => {
 });
 
 describe("LockedTierSection", () => {
-  it("극단값(월급 1억 · 남는 돈 1원)이면 1억 초과·저축 0원 비교 행 없이 내 월급 행 1개만 보인다", () => {
+  it("극단값(월급 1억 · 나눌 돈 1원)이면 1억 초과·저축 0원 비교 행 없이 내 월급 행 1개만 보인다", () => {
     render(
       <LockedTierSection
         plan={{ ...plan, salary: 100_000_000, fixedCosts: [{ ...plan.fixedCosts[0], amount: 99_999_999 }] }}
@@ -85,7 +85,8 @@ describe("LockedTierSection", () => {
     for (const row of rows) {
       expect(within(row).queryAllByRole("progressbar")).toHaveLength(0);
       const right = row.querySelector('[data-slot="right"]');
-      expect(right?.textContent).toMatch(/^[\d,]+원$/);
+      // 오른쪽은 월 저축액 하나 — "월"을 붙인다(아랫줄 "연 …원"과 구별, 고도화 0930).
+      expect(right?.textContent).toMatch(/^월 [\d,]+원$/);
     }
     const mine = rows.filter((r) => r.textContent?.includes("내 월급"));
     expect(mine).toHaveLength(1);

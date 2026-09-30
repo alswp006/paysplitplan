@@ -172,7 +172,7 @@ test.describe("phase 1", () => {
     await page.goto("/");
     await page.getByRole("button", { name: "계획 수정" }).click();
     await page.getByRole("button", { name: "기본 5:3:1:1" }).click();
-    await page.getByRole("button", { name: "배분 결과 보기" }).click();
+    await page.getByRole("button", { name: "세팅표 보기" }).click();
     await page.getByRole("button", { name: "이 계획 저장하기" }).click();
     await page.getByRole("button", { name: "바꾸기" }).click();
     await page.getByRole("button", { name: "홈에서 이체 체크하기" }).click();
@@ -195,7 +195,7 @@ test.describe("phase 1", () => {
     await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(300);
 
-    await page.getByRole("button", { name: "배분 결과 보기" }).click();
+    await page.getByRole("button", { name: "세팅표 보기" }).click();
     await page.waitForURL(/\/result$/);
     await page.waitForTimeout(300);
     expect(await page.evaluate(() => window.scrollY)).toBe(0);
@@ -212,7 +212,7 @@ test.describe("phase 1", () => {
 
     await expect.poll(() => page.evaluate(() => (window as unknown as { __shared?: string }).__shared ?? null)).not.toBeNull();
     const shared = await page.evaluate(() => (window as unknown as { __shared?: string }).__shared ?? "");
-    expect(shared).toContain("생활비 40 · 저축 40 · 비상금 10 · 여가 10");
+    expect(shared).toContain("생활비 40% · 저축 40% · 비상금 10% · 여가 10%");
     expect(shared).not.toMatch(AMOUNT_RE);
     guard.expectClean();
   });
@@ -370,12 +370,12 @@ test.describe("phase 2", () => {
     await seedPlan(page, { ...SEED_B, payday: 31 });
     await page.goto("/result");
     const sheet = page.getByTestId("setup-sheet");
-    await expect(sheet).toContainText("이체는 월급날 다음 날");
+    await expect(sheet).toContainText("월급날 다음 날 자동이체에 금액을 붙여 넣어요");
     expect(await page.locator("body").innerText()).not.toContain("32일");
     guard.expectClean();
   });
 
-  test("F1-6: 홈 넛지 — 복사 전 '은행 세팅 전', 전체 복사 뒤 사라지고, 계획을 바꿔 저장하면 '계획이 바뀌었어요'", async ({ page, context }) => {
+  test("F1-6: 홈 넛지 — 복사 전 '은행 세팅 전', 전체 복사 뒤 사라지고, 계획을 바꿔 저장하면 '은행에 넣은 금액과 지금 계획이 달라요'", async ({ page, context }) => {
     const guard = consoleGuard(page);
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
     await atTime(page);
@@ -393,11 +393,12 @@ test.describe("phase 2", () => {
 
     await page.getByRole("button", { name: "계획 수정" }).click();
     await page.getByRole("button", { name: "여유 6:2:1:1" }).click();
-    await page.getByRole("button", { name: "배분 결과 보기" }).click();
+    await page.getByRole("button", { name: "세팅표 보기" }).click();
     await page.getByRole("button", { name: "이 계획 저장하기" }).click();
     await page.getByRole("button", { name: "바꾸기" }).click();
     await page.getByRole("button", { name: "홈에서 이체 체크하기" }).click();
-    await expect(page.getByTestId("setup-nudge")).toContainText("계획이 바뀌었어요");
+    // 고도화 0930: "계획이 바뀌었어요"라고 단정하지 않는다(저장 안 한 초안을 복사해도 서명이 달라진다).
+    await expect(page.getByTestId("setup-nudge")).toContainText("은행에 넣은 금액과 지금 계획이 달라요");
     guard.expectClean();
   });
 
@@ -469,11 +470,11 @@ test.describe("phase 2", () => {
     await atTime(page);
     await page.goto("/plan?r=40-40-10-10");
     await expect(page.getByTestId("shared-ratio-banner")).toBeVisible();
-    await expect(page.getByTestId("shared-ratio-banner")).toContainText("생활비 40 · 저축 40 · 비상금 10 · 여가 10");
+    await expect(page.getByTestId("shared-ratio-banner")).toContainText("생활비 40% · 저축 40% · 비상금 10% · 여가 10%");
     await expect(page.getByRole("button", { name: "저축 집중 4:4:1:1" })).toHaveAttribute("aria-pressed", "true");
 
     await page.getByRole("textbox", { name: "월급", exact: true }).fill("3000000");
-    await page.getByRole("button", { name: "배분 결과 보기" }).click();
+    await page.getByRole("button", { name: "세팅표 보기" }).click();
     await page.waitForURL(/\/result$/);
     const saving = page.locator("[data-testid=allocation-card]").filter({ hasText: "저축 통장" });
     await expect(saving).toContainText("나눌 돈의 40%");
@@ -666,7 +667,8 @@ test.describe("phase 3", () => {
     await page.goto("/result");
     const mine = page.getByTestId("bracket-row").filter({ hasText: "내 월급" });
     await expect(mine).toHaveCount(1);
-    const amount = mine.getByText("720,000원", { exact: true });
+    // 고도화 0930: 오른쪽 금액에 "월"을 붙였다(아랫줄 "연 …원"과 구별).
+    const amount = mine.getByText("월 720,000원", { exact: true });
     const box = await amount.boundingBox();
     // 한 줄 = t5 줄 높이 25.5px(설치본 실측). 스펙의 24px는 t5 한 줄보다 작아 한 줄도 실패한다 — 세팅표 금액(F1-7)과
     // 같은 26px로 잰다(두 줄이면 51px).
@@ -683,7 +685,7 @@ test.describe("phase 3", () => {
     await expect(page.getByTestId("setup-sheet")).toBeVisible();
     expectAligned(
       {
-        heroLabel: await x(page.getByTestId("available-hero").getByText("남는 돈", { exact: true })),
+        heroLabel: await x(page.getByTestId("available-hero").getByText("나눌 돈", { exact: true })),
         sheetTitle: await x(page.getByTestId("setup-sheet").getByText("은행 앱에 옮길 세팅표", { exact: true })),
         firstBadge: await x(page.getByTestId("setup-sheet").getByTestId("category-badge").first()),
       },

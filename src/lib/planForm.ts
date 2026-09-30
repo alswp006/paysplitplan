@@ -55,15 +55,15 @@ export function validatePaydayInput(raw: string): PaydayResult {
   return { value: parsed.value, error: null };
 }
 
-/** 남는 돈 미리보기 문구. 월급이 유효하지 않거나 남는 돈이 0 이하면 '-원'(음수는 보여주지 않는다). */
+/** 나눌 돈 미리보기 문구. 월급이 유효하지 않거나 나눌 돈이 0 이하면 '-원'(음수는 보여주지 않는다). */
 export function formatAvailablePreview(salaryRaw: string, fixedTotal: number): string {
   const parsed = parseAmountInput(salaryRaw);
-  if (parsed.kind !== "ok" || parsed.value < 1 || parsed.value > SALARY_MAX) return "남는 돈 -원";
+  if (parsed.kind !== "ok" || parsed.value < 1 || parsed.value > SALARY_MAX) return "나눌 돈 -원";
   const available = parsed.value - fixedTotal;
-  return available > 0 ? `남는 돈 ${formatWon(available)}` : "남는 돈 -원";
+  return available > 0 ? `나눌 돈 ${formatWon(available)}` : "나눌 돈 -원";
 }
 
-/** 남는 돈(양수일 때만). 그 외는 null. */
+/** 나눌 돈(양수일 때만). 그 외는 null. */
 export function getAvailable(salaryRaw: string, fixedTotal: number): number | null {
   const parsed = parseAmountInput(salaryRaw);
   if (parsed.kind !== "ok" || parsed.value < 1 || parsed.value > SALARY_MAX) return null;

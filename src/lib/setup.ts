@@ -27,10 +27,14 @@ export function transferDayLabel(payday: number): string {
   return payday <= 27 ? `매달 ${payday + 1}일` : "월급날 다음 날";
 }
 
-/** 금액이 0보다 큰 통장만 CATEGORY_ORDER(생활비·저축·비상금·여가) 순으로. */
+/**
+ * 비율이 0보다 크고 금액이 0보다 큰 통장만 CATEGORY_ORDER(생활비·저축·비상금·여가) 순으로.
+ * 비율 0%인 생활비는 내림 잔액(몇 원)만 받는데(calculateAllocation — SPEC), 그 몇 원을 위해 자동이체를 걸라고
+ * 하지 않는다(월급 통장에 그대로 남는다). 체크리스트는 SPEC대로 그 행을 보여 준다.
+ */
 export function buildSetupRows(draft: Pick<PlanDraft, "salary" | "fixedCosts" | "ratios">): SetupRow[] {
   const { amounts } = calculateAllocation(draft.salary, draft.fixedCosts, draft.ratios);
-  return CATEGORY_ORDER.filter((key) => amounts[key] > 0).map((key) => ({
+  return CATEGORY_ORDER.filter((key, i) => draft.ratios[i] > 0 && amounts[key] > 0).map((key) => ({
     key,
     label: `${CATEGORY_LABEL[key]} 통장`,
     ratio: draft.ratios[CATEGORY_ORDER.indexOf(key)],

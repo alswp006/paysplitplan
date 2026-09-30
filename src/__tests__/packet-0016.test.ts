@@ -90,7 +90,10 @@ describe("404 화면 (*)", () => {
     expect(within(area).getByText("페이지를 찾을 수 없어요")).toBeInTheDocument();
     expect(within(area).getByText("주소가 바뀌었거나 없는 화면이에요")).toBeInTheDocument();
     // 아이콘은 네트워크(static.toss.im) 없이 그려지는 번들 SVG다(샌드박스·차단 환경에서 깨진 이미지 방지).
-    expect(area.querySelector("svg")).not.toBeNull();
+    // 특정 lucide 아이콘(SearchX)이어야 한다 — 아무 svg나 통과시키면 아이콘이 바뀌거나 빠져도 초록이다.
+    const icon = within(area).getByTestId("not-found-icon");
+    expect(icon.tagName.toLowerCase()).toBe("svg");
+    expect(icon.getAttribute("class") ?? "").toContain("lucide-search-x");
     expect(screen.getAllByRole("button", { name: "홈으로 가기" })).toHaveLength(1);
     expect(screen.queryByTestId("home-probe")).toBeNull();
   });

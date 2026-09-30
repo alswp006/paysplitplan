@@ -70,7 +70,7 @@ export function ChecklistCard({
     // 정렬선: 제목·배지가 x = 16 + 20 = 36px(ListRow horizontalPadding="small" = 20px, 벤더 런타임 값).
     <Card testId="checklist-card" style={{ padding: LIST_CARD_PADDING }}>
       <div style={TEXT_INSET_TOP}>
-        <Paragraph.Text typography="t4">이번 달 이체 체크</Paragraph.Text>
+        <Paragraph.Text typography="t4" role="heading" aria-level={2}>이번 달 이체 체크</Paragraph.Text>
         <Spacing size={4} />
         <Paragraph.Text data-testid="progress-text" typography="t6" color="var(--adaptiveGrey600)">
           {view.progressText}
@@ -87,7 +87,7 @@ export function ChecklistCard({
             <ListRow.Texts
               type="2RowTypeA"
               top={`${row.label} · ${formatWon(row.amount)}`}
-              bottom={`쓸 수 있는 돈의 ${plan.ratios[CATEGORY_ORDER.indexOf(row.key)]}%`}
+              bottom={`나눌 돈의 ${plan.ratios[CATEGORY_ORDER.indexOf(row.key)]}%`}
             />
           }
           right={<Switch checked={row.checked} onChange={() => toggle(row.key)} aria-label={`${row.label} 이체 완료`} />}

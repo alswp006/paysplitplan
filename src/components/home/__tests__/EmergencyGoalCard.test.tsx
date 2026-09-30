@@ -82,7 +82,7 @@ describe("비상금 목표 카드 (홈)", () => {
     expect(card.textContent).toContain("0원 / 목표 9,342,000원");
     expect(within(card).getByRole("progressbar", { name: "비상금 목표 진행률" })).toBeInTheDocument();
     expect(card.textContent).toContain("지금 계획대로면 2030년 4월쯤 채워요");
-    expect(within(card).getByRole("radio", { name: "6개월" })).toBeChecked();
+    expect(within(card).getByRole("radio", { name: "6개월치" })).toBeChecked();
     expect(mockLogClick).toHaveBeenCalledWith("goal_set");
   });
 
@@ -130,7 +130,7 @@ describe("비상금 목표 카드 (홈)", () => {
     fireEvent.click(screen.getByRole("button", { name: "잔액 맞추기" }));
     const sheet = await screen.findByRole("dialog");
     // 건드리기 전에는 오류가 아니라 도움말이다
-    expect(within(sheet).getByText("이번 달 이체까지 포함한 금액이에요")).toBeInTheDocument();
+    expect(within(sheet).getByText("이번 달 이체 전 잔액으로 저장해요. 이미 옮겼다면 이체 완료를 먼저 켜 주세요")).toBeInTheDocument();
     fireEvent.click(within(sheet).getByRole("button", { name: "잔액 저장" }));
     expect(within(sheet).getByRole("alert")).toHaveTextContent("금액을 입력해 주세요");
 
@@ -145,7 +145,7 @@ describe("비상금 목표 카드 (홈)", () => {
       JSON.stringify({ version: 1, months: 6, baseBalance: 0, baseMonth: "2026-08", createdAt: TS, updatedAt: TS }),
     );
     renderCard();
-    fireEvent.click(screen.getByRole("radio", { name: "12개월" }));
+    fireEvent.click(screen.getByRole("radio", { name: "12개월치" }));
     expect(JSON.parse(localStorage.getItem(GOAL_KEY)!).months).toBe(12);
     expect(screen.getByTestId("emergency-goal").textContent).toContain("목표 18,684,000원");
     expect(mockLogClick).toHaveBeenCalledWith("goal_months");
@@ -168,7 +168,58 @@ describe("비상금 목표 카드 (홈)", () => {
     renderCard();
     fireEvent.click(screen.getByRole("button", { name: "3개월치" }));
     setItem.mockRestore();
-    expect(mockOpenToast).toHaveBeenCalledWith("저장 공간이 부족해 저장하지 못했어요", { higherThanCTA: true });
+    expect(mockOpenToast).toHaveBeenCalledWith("목표를 저장하지 못했어요. 잠시 뒤 다시 눌러 주세요", { higherThanCTA: true });
     expect(screen.getByRole("button", { name: "3개월치" })).toBeInTheDocument();
+  });
+});
+
+describe("비상금 목표 카드 — 고도화 0930 리뷰 수정", () => {
+  const goalRaw = (over: Record<string, unknown> = {}) =>
+    JSON.stringify({ version: 1, months: 12, baseBalance: 0, baseMonth: "2024-08", createdAt: TS, updatedAt: TS, ...over });
+
+  it("D-1: 기록이 바뀌면(토글) 저장된 목표를 다시 읽고, 개월 수를 바꿔도 정리 합산(baseBalance)을 낡은 사본으로 덮지 않는다", () => {
+    localStorage.setItem(GOAL_KEY, goalRaw());
+    const { rerender } = renderCard(EMPTY);
+    // 토글이 24개월 정리를 일으켜 foldPrunedIntoGoal이 목표를 갱신했다고 치자(디스크만 바뀐다).
+    localStorage.setItem(GOAL_KEY, goalRaw({ baseBalance: 240_000, baseMonth: "2024-09" }));
+    rerender(React.createElement(EmergencyGoalCard, { plan: PLAN_B, store: SEPT_EMERGENCY }));
+    expect(screen.getByTestId("emergency-goal").textContent).toContain("455,500원 / 목표");
+
+    fireEvent.click(screen.getByRole("radio", { name: "6개월치" }));
+    const saved = JSON.parse(localStorage.getItem(GOAL_KEY)!);
+    expect(saved).toMatchObject({ months: 6, baseBalance: 240_000, baseMonth: "2024-09" });
+  });
+
+  it("MAJOR 2: 이번 달 비상금 체크 전에 잔액을 넣으면 기준 달이 지난달이라, 체크하면 이번 달 금액이 더해진다", async () => {
+    localStorage.setItem(GOAL_KEY, goalRaw({ months: 6, baseMonth: "2026-08" }));
+    const { rerender } = renderCard(EMPTY);
+    fireEvent.click(screen.getByRole("button", { name: "잔액 맞추기" }));
+    const sheet = await screen.findByRole("dialog");
+    fireEvent.change(within(sheet).getByRole("textbox", { name: "비상금 통장 잔액" }), { target: { value: "3000000" } });
+    fireEvent.click(within(sheet).getByRole("button", { name: "잔액 저장" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(JSON.parse(localStorage.getItem(GOAL_KEY)!).baseMonth).toBe("2026-08");
+    expect(screen.getByTestId("emergency-goal").textContent).toContain("2029년 2월쯤");
+
+    rerender(React.createElement(EmergencyGoalCard, { plan: PLAN_B, store: SEPT_EMERGENCY }));
+    const card = screen.getByTestId("emergency-goal");
+    expect(card.textContent).toContain("3,215,500원 / 목표");
+    expect(card.textContent).toContain("이번 달 +215,500원");
+    expect(card.textContent).toContain("2029년 2월쯤"); // 체크했다고 채우는 달이 늦어지지 않는다
+  });
+
+  it("이번 달 비상금을 이미 체크했으면 잔액 안내가 '이체까지 들어간 지금 잔액'을 말한다", async () => {
+    localStorage.setItem(GOAL_KEY, goalRaw({ months: 6, baseMonth: "2026-08" }));
+    renderCard(SEPT_EMERGENCY);
+    fireEvent.click(screen.getByRole("button", { name: "잔액 맞추기" }));
+    const sheet = await screen.findByRole("dialog");
+    expect(within(sheet).getByText("이번 달 이체까지 들어간 지금 잔액으로 저장해요")).toBeInTheDocument();
+  });
+
+  it("개월 선택 묶음에 이름이 있고, 진행률은 정수 %로 읽힌다", () => {
+    localStorage.setItem(GOAL_KEY, goalRaw({ months: 6, baseMonth: "2026-08" }));
+    renderCard(SEPT_EMERGENCY);
+    expect(screen.getByRole("group", { name: "비상금 목표 기간" })).toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: "비상금 목표 진행률" })).toHaveAttribute("aria-valuetext", "목표의 2%");
   });
 });

@@ -21,10 +21,21 @@ export interface HomeHero {
 }
 
 /**
+ * 월급날이 지난달 **말일**이었고 오늘이 1일인가 — 세팅표의 이체일("월급날 다음 날", setup.transferDayLabel)이
+ * 이번 달 1일로 넘어온 날이다. 이날을 "월급 전 대기"로 보면 세팅표는 오늘 옮기라는데 홈은 D-29를 센다.
+ */
+function isTransferDayAfterMonthEndPayday(today: Date, payday: number): boolean {
+  if (today.getDate() !== 1) return false;
+  const prev = paydayOfMonth(today.getFullYear(), today.getMonth() - 1, payday);
+  const lastDayOfPrev = new Date(today.getFullYear(), today.getMonth(), 0).getDate();
+  return prev.getDate() === lastDayOfPrev;
+}
+
+/**
  * 홈 히어로의 상태. 달력 월 위에서 월급날을 기준으로 네 상태를 가른다(위에서부터 먼저 맞는 것).
  *  - payday     : 오늘이 월급날 — "D-0" 대신 "오늘은 월급날이에요"
  *  - done       : 이번 달 체크가 모두 끝남
- *  - inProgress : 이번 달 월급날이 지났거나 하나라도 체크함 — 남은 개수
+ *  - inProgress : 이번 달 월급날이 지났거나(말일 월급의 다음 날인 1일 포함) 하나라도 체크함 — 남은 개수
  *  - waiting    : 그 밖(월급 전) — 다음 월급날까지 D-n, 지난달 결과 한 줄
  * 순수 함수 — 저장소를 읽거나 쓰지 않는다.
  */
@@ -33,7 +44,7 @@ export function buildHomeHero(plan: SalaryPlan, store: RecordStore, today: Date)
   const { dday, label: pd } = getNextPayday(today, plan.payday);
   const month = today.getMonth() + 1;
   const thisPayday = paydayOfMonth(today.getFullYear(), today.getMonth(), plan.payday);
-  const passed = today.getDate() >= thisPayday.getDate();
+  const passed = today.getDate() >= thisPayday.getDate() || isTransferDayAfterMonthEndPayday(today, plan.payday);
   const filledKeys = view.rows.filter((r) => r.checked).map((r) => r.key);
   const untilPayday = `${pd}까지 D-${dday}`;
 

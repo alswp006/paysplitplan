@@ -182,7 +182,8 @@ export function pruneMonths(
  * - 원문 전체가 파싱되지 않거나 모양이 틀리면, 또는 대상 달의 원문이 검증을 통과하지 못하면
  *   원문 전체를 RECORDS_BACKUP_KEY에 복사한 **뒤에만** 쓴다. 복사하지 못하면 쓰지 않고 QUOTA.
  * - 24개월을 넘으면 pruneMonths로 가장 오래된 달부터 지운다. 지운 달의 비상금 체크는 goal.foldPrunedIntoGoal이
- *   목표에 합친다(합치지 못하면 그 쓰기에서는 지우지 않는다).
+ *   목표에 합친다(합치지 못하면 그 쓰기에서는 지우지 않는다). 지우는 달에 무효 원문이 있으면 원문 전체를 먼저 백업한다.
+ * - 백업 키는 최신 실패 원문 하나만 둔다(덮어쓰기) — 여러 번 실패하면 앞의 백업은 남지 않는다.
  * 던지지 않는다 — 쓰기 실패면 {ok:false, error:"QUOTA"}이고 기존 값이 그대로 남는다.
  */
 export function writeMonthRecord(record: MonthRecord): SaveResult {
@@ -209,10 +210,18 @@ export function writeMonthRecord(record: MonthRecord): SaveResult {
     }
     records[record.month] = record;
     const pruned = pruneMonths(records);
-    // 지우는 달의 비상금 체크는 목표(baseBalance)에 먼저 합친다 — 모은 돈 총합이 변하지 않게.
-    // 합치지 못하면(목표 쓰기 실패) 이번에는 정리하지 않는다: 25개월이 남는 것이 모은 돈을 잃는 것보다 낫다.
-    if (pruned.length > 0 && !foldPrunedIntoGoal(pruned)) {
+    const restore = () => {
       for (const [month, value] of pruned) records[month] = value;
+    };
+    // 정리로 지워지는 달 중 검증에 실패한 원문(옛 빌드·손으로 고친 값)이 있으면 원문 전체를 먼저 백업한다 —
+    // 유효한 달은 목표 합산으로 남지만 무효인 달은 그대로 사라진다. 백업하지 못하면 이번에는 정리하지 않는다.
+    const prunesInvalid = pruned.some(([month, value]) => !isValidRecord(month, normalizeLegacyRecord(month, value)));
+    if (raw !== null && prunesInvalid && !writeRaw(RECORDS_BACKUP_KEY, raw)) {
+      restore();
+    } else if (pruned.length > 0 && !foldPrunedIntoGoal(pruned)) {
+      // 지우는 달의 비상금 체크는 목표(baseBalance)에 먼저 합친다 — 모은 돈 총합이 변하지 않게.
+      // 합치지 못하면(목표 쓰기 실패) 이번에는 정리하지 않는다: 25개월이 남는 것이 모은 돈을 잃는 것보다 낫다.
+      restore();
     }
     localStorage.setItem(RECORDS_KEY, JSON.stringify({ version: 1, records }));
     return { ok: true };

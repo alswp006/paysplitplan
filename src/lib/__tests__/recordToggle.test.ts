@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { resyncCurrentMonth, toggleRecordItem } from "@/lib/recordToggle";
+import { movedChecksToReset, resyncCurrentMonth, toggleRecordItem } from "@/lib/recordToggle";
 import { loadRecords, PLAN_KEY, RECORDS_KEY } from "@/lib/storage";
 import type { MonthRecord, SalaryPlan } from "@/lib/types";
 
@@ -167,6 +167,40 @@ describe("resyncCurrentMonth — 계획을 바꿔 저장한 뒤 이번 달 기�
     const rec = loadRecords().records["2026-09"];
     expect(rec.rate).toBe(100);
     expect(rec.completedAt).toBe("2026-09-10T00:00:00.000Z");
+  });
+
+  it("월급을 올려 저축·비상금 금액이 바뀌면 그 체크는 풀린다 — 옮기지 않은 차액을 모인 돈으로 세지 않는다(review 0930 MAJOR 1)", () => {
+    localStorage.setItem(RECORDS_KEY, JSON.stringify({ version: 1, records: { "2026-09": sept } }));
+    const raised: SalaryPlan = { ...planA, salary: 5_000_000 };
+    expect(movedChecksToReset(raised, today)).toEqual(["saving", "emergency"]);
+
+    expect(resyncCurrentMonth(raised, today)).toEqual({ ok: true });
+    const rec = loadRecords().records["2026-09"];
+    // 생활비는 쓰는 돈이라 체크를 유지하고(이행률만 다시 센다), 모이는 돈 둘은 새 금액을 옮긴 뒤 다시 체크한다.
+    expect(rec.checked).toEqual({ living: true, saving: false, emergency: false, leisure: false });
+    expect(rec.rate).toBe(25);
+    expect(rec.snapshot.amounts.emergency).toBe(440_000);
+  });
+
+  it("비율만 바꿔 비상금 금액이 같으면 비상금 체크는 그대로다", () => {
+    localStorage.setItem(RECORDS_KEY, JSON.stringify({ version: 1, records: { "2026-09": sept } }));
+    expect(movedChecksToReset(planA, today)).toEqual([]);
+  });
+
+  it("예전 금액을 모르는(snapshot 없는) 옛 기록의 체크는 지우지 않는다", () => {
+    const legacy = { ...sept } as Partial<MonthRecord>;
+    delete legacy.snapshot;
+    localStorage.setItem(RECORDS_KEY, JSON.stringify({ version: 1, records: { "2026-09": legacy } }));
+    expect(resyncCurrentMonth({ ...planA, salary: 5_000_000 }, today)).toEqual({ ok: true });
+    expect(loadRecords().records["2026-09"].checked.emergency).toBe(true);
+  });
+
+  it("계획이 바뀐 뒤 다른 통장을 토글해도 금액이 바뀐 비상금 체크는 풀리고, 방금 누른 통장은 새 금액 기준으로 체크된다", () => {
+    localStorage.setItem(RECORDS_KEY, JSON.stringify({ version: 1, records: { "2026-09": sept } }));
+    localStorage.setItem(PLAN_KEY, JSON.stringify({ ...planA, salary: 5_000_000 }));
+    expect(toggleRecordItem("leisure", true)).toEqual({ ok: true });
+    const rec = loadRecords().records["2026-09"];
+    expect(rec.checked).toEqual({ living: true, saving: false, emergency: false, leisure: true });
   });
 
   it("이번 달 기록이 없으면 아무것도 쓰지 않는다(setItem 0회)", () => {

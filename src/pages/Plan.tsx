@@ -10,7 +10,7 @@ import { Card } from "@/components/Card";
 import { CategoryBadge } from "@/components/CategoryBadge";
 import { SplitBar } from "@/components/SplitBar";
 import { logClick, logImpression } from "@/lib/analytics";
-import { parseSharedRatios, ratioLine } from "@/lib/deeplink";
+import { parseSharedRatios, ratioItems } from "@/lib/deeplink";
 import { formatAmountRaw, formatManwon, formatWon } from "@/lib/format";
 import { PRESETS, resolvePresetId } from "@/lib/plan";
 import { sumRatios } from "@/lib/ratioForm";
@@ -26,7 +26,7 @@ import {
 } from "@/lib/planForm";
 import { ratioSplit } from "@/lib/split";
 import { loadPlan } from "@/lib/storage";
-import { BRAND } from "@/lib/theme";
+import { BRAND, TEXT_SUBTLE_ON_TINT } from "@/lib/theme";
 import type { FixedCost, Ratios, RouteState, SalaryPlan } from "@/lib/types";
 
 const DEFAULT_PAYDAY = "25";
@@ -88,9 +88,17 @@ function SharedRatioBanner({ ratios, hasPlan }: { ratios: Ratios; hasPlan: boole
       <SplitBar testId="shared-ratio-bar" height={12} segments={split.segments} ariaLabel={`받은 비율 ${split.ariaLabel}`} />
       <Spacing size={8} />
       {/* 막대 색의 텍스트 뜻 — 바로 아래 비율 한 줄이 범례 역할을 한다(색만으로 뜻을 전하지 않는다). */}
-      <Paragraph.Text typography="t6">{ratioLine(ratios)}</Paragraph.Text>
+      <Paragraph.Text typography="t6">
+        {/* 항목 안에서는 줄을 바꾸지 않는다(360~390px에서 "여가 / 10%"로 갈라졌다) — 구분점에서만 바꾼다. */}
+        {ratioItems(ratios).map((item, i) => (
+          <span key={item}>
+            {i > 0 ? " · " : null}
+            <span style={{ whiteSpace: "nowrap" }}>{item}</span>
+          </span>
+        ))}
+      </Paragraph.Text>
       <Spacing size={4} />
-      <Paragraph.Text typography="t6" color="var(--adaptiveGrey600)">
+      <Paragraph.Text typography="t6" color={TEXT_SUBTLE_ON_TINT}>
         {hasPlan ? "저장하기 전까지 기존 계획은 그대로예요" : "월급과 고정비를 넣으면 금액이 나와요"}
       </Paragraph.Text>
     </Card>
@@ -113,8 +121,17 @@ export default function Plan() {
   useEffect(() => {
     if (!shared || openLogged.current) return;
     openLogged.current = true;
+    // 링크로 들어온 한 번만 센다 — 결과 화면에서 뒤로 돌아와 이 화면이 다시 마운트돼도(같은 ?r=) 또 세지 않게
+    // 세션 동안 기억한다. 저장소가 막혀 있으면(사파리 사생활 보호 등) 마운트마다 세는 쪽으로 물러난다.
+    const key = `paysplit:ratio-link-logged:${location.search}`;
+    try {
+      if (sessionStorage.getItem(key) !== null) return;
+      sessionStorage.setItem(key, "1");
+    } catch {
+      /* 세션 저장소 없음 — 그냥 센다 */
+    }
     logImpression("ratio_link_open");
-  }, [shared]);
+  }, [shared, location.search]);
   const [salaryTouched, setSalaryTouched] = useState(false);
   const [paydayTouched, setPaydayTouched] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -168,7 +185,7 @@ export default function Plan() {
       top={<Top title={<Top.TitleParagraph>계획 짜기</Top.TitleParagraph>} />}
       bottom={
         <SubmitFooter
-          label="배분 결과 보기"
+          label="세팅표 보기"
           onClick={submit}
           disabled={blockingError !== null}
           hint={footerHint}

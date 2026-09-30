@@ -26,7 +26,8 @@ mockRouter();
 //   (true를 돌려주면 '바꾸기', false면 '닫기'다.)
 // - 저장 성공: useToast().openToast('계획을 저장했어요') + logClick('plan_save') 1회. 리뷰 요청은 여기서 하지 않는다
 //   (2026-09-30: 첫 이체 체크 100% 순간(ChecklistCard) 한 곳으로 옮겼다 — 저장 직후는 아직 가치를 본 순간이 아니다).
-// - savePlan이 {ok:false,error:'QUOTA'}면 openToast('저장 공간이 부족해 저장하지 못했어요'), 라벨 유지, 리뷰 0회.
+// - savePlan이 {ok:false,error:'QUOTA'}면 openToast('계획을 저장하지 못했어요. 잠시 뒤 다시 눌러 주세요'), 라벨 유지, 리뷰 0회.
+//   (고도화 0930: 원인을 '용량'으로 단정하지 않고 다음 행동을 말한다 — savePlan은 모든 쓰기 예외를 QUOTA로 돌려준다.)
 // - '바꾸기' 확정 시 logClick('plan_overwrite_confirm') 1회.
 
 const { logClick, requestReviewOnce, savePlanSpy, actualSavePlan } = vi.hoisted(() => ({
@@ -142,7 +143,8 @@ describe("결과 저장 버튼 + 덮어쓰기 확인 (ResultSaveFooter)", () => 
     expect(mockDialog.openConfirm).toHaveBeenCalledWith(
       expect.objectContaining({
         title: "저장된 계획을 바꿀까요?",
-        description: "지금 계획으로 바뀌어요. 지난 기록은 그대로 두고, 이번 달 체크만 새 금액으로 다시 세요.",
+        // 고도화 0930: 이번 달 체크가 없으면 풀리는 통장이 없으니 기본 문장만 나온다(overwriteDescription).
+        description: "지난 기록은 그대로 두고, 이번 달 체크는 새 금액 기준으로 다시 계산해요.",
         confirmButton: "바꾸기",
         cancelButton: "닫기",
       }),
@@ -208,7 +210,7 @@ describe("결과 저장 버튼 + 덮어쓰기 확인 (ResultSaveFooter)", () => 
 
     fireEvent.click(saveButton());
 
-    await waitFor(() => expect(toastMessages()).toEqual(["저장 공간이 부족해 저장하지 못했어요"]));
+    await waitFor(() => expect(toastMessages()).toEqual(["계획을 저장하지 못했어요. 잠시 뒤 다시 눌러 주세요"]));
     expect(mockDialog.openConfirm).toHaveBeenCalledTimes(0);
     expect(savePlanSpy).toHaveBeenCalledTimes(1);
     expect(requestReviewOnce).toHaveBeenCalledTimes(0);
@@ -225,7 +227,7 @@ describe("결과 저장 버튼 + 덮어쓰기 확인 (ResultSaveFooter)", () => 
 
     fireEvent.click(saveButton());
 
-    await waitFor(() => expect(toastMessages()).toEqual(["저장 공간이 부족해 저장하지 못했어요"]));
+    await waitFor(() => expect(toastMessages()).toEqual(["계획을 저장하지 못했어요. 잠시 뒤 다시 눌러 주세요"]));
     expect(mockDialog.openConfirm).toHaveBeenCalledTimes(1);
     expect(savePlanSpy).toHaveBeenCalledTimes(1);
     expect(requestReviewOnce).toHaveBeenCalledTimes(0);

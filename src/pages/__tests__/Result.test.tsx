@@ -33,7 +33,7 @@ beforeEach(() => {
 });
 
 describe("Result 레이아웃", () => {
-  it("저장된 계획으로 들어오면 무료 층에 남는 돈과 배분 카드 4개가 보인다", async () => {
+  it("저장된 계획으로 들어오면 무료 층에 나눌 돈과 배분 카드 4개가 보인다", async () => {
     savePlan(EXAMPLE_A);
     renderWithRouter(<Result />);
 
@@ -64,7 +64,7 @@ describe("Result 레이아웃", () => {
     expect(mockLogClick).toHaveBeenCalledWith("result_share");
     expect(mockShareApp).toHaveBeenCalledTimes(1);
     expect(mockShareApp).toHaveBeenCalledWith({
-      message: "월급쪼개기로 이렇게 나눠요\n생활비 50 · 저축 30 · 비상금 10 · 여가 10\n내 월급으로 계산해 보기",
+      message: "월급쪼개기로 이렇게 나눠요\n생활비 50% · 저축 30% · 비상금 10% · 여가 10%\n내 월급으로 계산해 보기",
       path: "intoss://paysplitplan/plan?r=50-30-10-10",
     });
     const [{ message }] = mockShareApp.mock.calls[0] as unknown as [{ message: string }];

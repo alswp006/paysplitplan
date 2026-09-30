@@ -46,6 +46,16 @@ export const SURFACE = {
   sunken: "var(--adaptiveGreyBackground)",
 } as const;
 
+/**
+ * 보조 글자색 — TDS 기본 보조색 --adaptiveGrey600은 흰 바탕 기준(라이트 4.6:1)이라, 회색 면(sunken 4.2:1)·브랜드 틴트
+ * (Green50 4.3:1) 위에서는 WCAG AA(4.5:1)에 못 미친다. 흰 카드 위 보조 글자는 TEXT_SUBTLE, 회색 면·틴트 위는
+ * TEXT_SUBTLE_ON_TINT(--adaptiveGrey700, 약 6.5:1). 다크 모드는 adaptive 토큰이 알아서 뒤집힌다.
+ * ListRow.Texts의 아랫줄은 벤더가 grey600을 칠하므로 회색 면 위에서는 bottomProps={SUBTLE_ON_TINT_ROW}를 넘긴다.
+ */
+export const TEXT_SUBTLE = "var(--adaptiveGrey600)";
+export const TEXT_SUBTLE_ON_TINT = "var(--adaptiveGrey700)";
+export const SUBTLE_ON_TINT_ROW = { color: TEXT_SUBTLE_ON_TINT } as const;
+
 /** 막대 범례·접근성 이름에 쓰는 짧은 이름 */
 export const SPLIT_LABEL: Record<SplitKind, string> = {
   fixed: "고정비",
@@ -57,7 +67,10 @@ export const SPLIT_LABEL: Record<SplitKind, string> = {
 
 /**
  * 정렬선 하나 — 본문 좌우 16px(ScreenScaffold) + 카드 안 20px = 텍스트·배지 기준선 x = 36px.
- * TDS ListRow 기본 좌우 패딩은 24px(medium)이라 카드 안 ListRow에는 horizontalPadding="small"(20px, 벤더 런타임 값)을 준다.
+ * TDS ListRow 기본 좌우 패딩은 24px(medium)이라 카드 안 ListRow에는 horizontalPadding="small"(20px)을 준다.
+ * 주의: 20px은 **벤더 런타임 값**(2.5.1 `--list-row-horizontal-padding: 20px`)이고, 같은 판본의 .d.ts 주석은 small을
+ * 16px로 적는다(문서와 런타임이 다르다). @toss/tds-mobile이 "latest" 핀이라 벤더가 런타임을 문서에 맞추면 정렬선이
+ * 조용히 32px로 옮겨 간다 — e2e/paysplit-walk.spec.ts P3-10(정렬선 x 36px)이 그 변화를 잡는다.
  *  - 맨 텍스트만 있는 카드: padding CARD_INSET
  *  - ListRow를 담은 카드: padding LIST_CARD_PADDING, 맨 텍스트는 TEXT_INSET(_TOP)로 감싼다
  */

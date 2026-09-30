@@ -46,7 +46,8 @@ export function EmptyState({
       {description ? (
         <>
           <Spacing size={4} />
-          <Paragraph.Text typography="t6" color="var(--adaptiveGrey600)">{description}</Paragraph.Text>
+          {/* grey700 — 빈 상태는 회색 바탕(홈·기록)에도 놓인다. grey600은 그 위에서 AA(4.5:1)에 못 미친다. */}
+          <Paragraph.Text typography="t6" color="var(--adaptiveGrey700)">{description}</Paragraph.Text>
         </>
       ) : null}
       {action ? (

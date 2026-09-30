@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button, Spacing, Top } from "@toss/tds-mobile";
 import { ChartPie } from "lucide-react";
+import { BrandIcon } from "@/components/BrandIcon";
 import { ScreenScaffold } from "@/components/ScreenScaffold";
 import { EmptyState } from "@/components/StateView";
 import { SummaryHero } from "@/components/SummaryHero";
@@ -57,7 +58,11 @@ export default function Result() {
       <ScreenScaffold top={top}>
         <EmptyState
           fill
-          icon={<ChartPie size={48} color="var(--adaptiveGrey500)" aria-hidden />}
+          icon={
+            <BrandIcon>
+              <ChartPie size={36} aria-hidden />
+            </BrandIcon>
+          }
           title="아직 계획이 없어요"
           description="월급과 고정비를 넣으면 통장별 이체 금액을 계산해 드려요"
           action={
@@ -71,7 +76,14 @@ export default function Result() {
   }
 
   const { draft, fromSavedPlan } = source;
-  const { fixedTotal, available } = calculateAllocation(draft.salary, draft.fixedCosts, draft.ratios);
+  const { fixedTotal, available, amounts } = calculateAllocation(draft.salary, draft.fixedCosts, draft.ratios);
+  // 잠금 층이 약속하는 것은 "모이는 돈"이다. 저축·비상금이 둘 다 0원이면 1년 합계 카드가 없고 구간 비교도 내 월급 한 줄뿐이라
+  // 광고를 보여 줄 값어치가 없다 — 게이트 없이 연다(빈 약속으로 광고를 보게 하지 않는다). 저축만 0원이면 문구를 맞춘다.
+  const lockedHasPayoff = amounts.saving + amounts.emergency > 0;
+  const gateDescription =
+    amounts.saving > 0
+      ? "광고를 보면 1년 뒤 모이는 돈과 월급 구간별 저축 비교를 볼 수 있어요"
+      : "광고를 보면 1년 뒤 모이는 비상금과 최근 이행 추이를 볼 수 있어요";
   // 시그니처 — 월급 한 줄이 고정비와 통장 4개로 갈라진다. 금액은 막대의 aria-label에만(무료 층 금액 텍스트는 세팅표 행 하나).
   const split = allocationSplit(draft.salary, draft.fixedCosts, draft.ratios);
 
@@ -91,7 +103,7 @@ export default function Result() {
         <SummaryHero
           testId="available-hero"
           tone="brand"
-          label="남는 돈"
+          label="나눌 돈"
           value={<CountUp value={available} unit="원" typography="t1" durationMs={0} />}
           caption={`월급 ${formatWon(draft.salary)} − 고정비 ${formatWon(fixedTotal)}`}
           extra={
@@ -113,8 +125,8 @@ export default function Result() {
         </div>
       </div>
       <Spacing size={32} />
-      <TossRewardAd adGroupId={REWARD_AD_GROUP_ID}
-        description="광고를 보면 1년 뒤 모이는 돈과 월급 구간별 저축 비교를 볼 수 있어요"
+      <TossRewardAd adGroupId={lockedHasPayoff ? REWARD_AD_GROUP_ID : ""}
+        description={gateDescription}
         buttonText="광고 보고 더 보기"
       >
         <div data-testid="locked-tier">

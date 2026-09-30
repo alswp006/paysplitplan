@@ -29,7 +29,7 @@ describe("split 모델", () => {
       { key: "leisure", amount: 240_000, checked: false },
     ]);
     expect(m.segments.filter((s) => s.filled).map((s) => s.key)).toEqual(["saving", "emergency"]);
-    expect(m.ariaLabel).toBe("생활비 남음, 저축 옮김, 비상금 옮김, 여가 남음");
+    expect(m.ariaLabel).toBe("이번 달 이체: 생활비 남음, 저축 옮김, 비상금 옮김, 여가 남음");
   });
 
   it("범례는 0인 조각을 뺀다", () => {

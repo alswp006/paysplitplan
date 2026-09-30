@@ -10,6 +10,7 @@ export function Sparkline({
   height = 64,
   testId,
   color = "var(--adaptiveBlue500)",
+  domain,
 }: {
   /** null은 값 없는 자리 — 선을 끊고 바닥에 빈 점으로 표시한다(자리는 유지). */
   data: (number | null)[];
@@ -18,17 +19,19 @@ export function Sparkline({
   testId?: string;
   /** 선·면·점 색(adaptive 토큰). 기본값은 템플릿 그대로 — 앱은 src/lib/theme.ts의 색을 명시한다. */
   color?: string;
+  /** 세로축 범위 [최소, 최대]. 없으면 데이터의 최솟값~최댓값(템플릿 기본). 이행률처럼 범위가 정해진 값은 넘겨라. */
+  domain?: [number, number];
 }) {
   if (!data || data.length < 2) return null;
 
   const values = data.flatMap((v) => (v === null ? [] : [v]));
-  const min = values.length > 0 ? Math.min(...values) : 0;
-  const max = values.length > 0 ? Math.max(...values) : 0;
+  const min = domain ? domain[0] : values.length > 0 ? Math.min(...values) : 0;
+  const max = domain ? domain[1] : values.length > 0 ? Math.max(...values) : 0;
   const span = max - min || 1;
   const stepX = width / (data.length - 1);
   const pos = data.map((v, i) => ({
     x: i * stepX,
-    y: v === null ? height : height - ((v - min) / span) * height,
+    y: v === null ? height : height - ((Math.min(max, Math.max(min, v)) - min) / span) * height,
     empty: v === null,
   }));
 

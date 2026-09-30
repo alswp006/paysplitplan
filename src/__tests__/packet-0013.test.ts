@@ -64,13 +64,13 @@ afterEach(() => {
 });
 
 describe("배분 결과 화면 (/result)", () => {
-  it("AC-1[P0]: 예시 A 초안이 state로 오면 free-tier에 남는 돈과 4개 통장 금액이 보인다", () => {
+  it("AC-1[P0]: 예시 A 초안이 state로 오면 free-tier에 나눌 돈과 4개 통장 금액이 보인다", () => {
     setState({ draft: EXAMPLE_A });
     renderResult();
 
     const free = screen.getByTestId("free-tier");
     const hero = within(free).getByTestId("available-hero");
-    expect(hero.textContent).toContain("남는 돈");
+    expect(hero.textContent).toContain("나눌 돈");
     expect(hero.textContent).toContain("2,400,000원");
     // 히어로 숫자는 CountUp의 value prop = 2400000
     expect(countUpValues).toContain(2_400_000);
@@ -212,7 +212,7 @@ describe("배분 결과 화면 (/result)", () => {
     expect(shareLogs).toHaveLength(1);
     expect(mockShareApp).toHaveBeenCalledTimes(1);
     expect(mockShareApp).toHaveBeenCalledWith({
-      message: "월급쪼개기로 이렇게 나눠요\n생활비 50 · 저축 30 · 비상금 10 · 여가 10\n내 월급으로 계산해 보기",
+      message: "월급쪼개기로 이렇게 나눠요\n생활비 50% · 저축 30% · 비상금 10% · 여가 10%\n내 월급으로 계산해 보기",
       path: "intoss://paysplitplan/plan?r=50-30-10-10",
     });
     // 금액(월급·통장 금액)은 메시지에 싣지 않는다

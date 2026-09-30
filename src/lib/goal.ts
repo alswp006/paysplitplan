@@ -8,7 +8,8 @@ import type { EmergencyGoal, GoalMonths, GoalSummary, PlanDraft, RecordStore, Sa
  * "몇 달 치 모였나"를 보여 준다. 새 입력은 목표 개월 수와(선택) 지금 잔액뿐이다.
  *
  * 모은 돈(saved) = baseBalance + Σ(baseMonth보다 뒤의 달 중 비상금을 체크한 기록의 그 달 비상금 금액).
- * - 잔액 맞추기는 baseBalance = 입력값, baseMonth = 이번 달(이번 달 체크가 두 번 세어지지 않게).
+ * - 잔액 맞추기는 baseBalance = 입력값, baseMonth = 이번 달 비상금을 체크했으면 이번 달(두 번 세지 않게), 아니면 지난달
+ *   (나중에 체크하면 이번 달 금액이 더해지게).
  * - 기록 24개월 정리로 지워지는 달은 storage.writeMonthRecord가 foldPrunedIntoGoal로 baseBalance에 합친다(총합 불변).
  * 이 모듈은 storage를 import하지 않는다(storage가 이 모듈을 부른다 — 순환 방지).
  */
@@ -88,9 +89,25 @@ export function createGoal(months: GoalMonths, today: Date = getToday()): Emerge
   return { version: 1, months, baseBalance: 0, baseMonth: shiftMonth(monthKey(today), -1), createdAt: now, updatedAt: now };
 }
 
-/** 잔액 맞추기 — 입력값이 이번 달 이체까지 포함한 잔액이다. baseMonth = 이번 달. */
-export function adjustBalance(goal: EmergencyGoal, balance: number, today: Date = getToday()): EmergencyGoal {
-  return { ...goal, baseBalance: balance, baseMonth: monthKey(today), updatedAt: nowIso() };
+/**
+ * 잔액 맞추기 — 입력값은 **지금** 통장 잔액이다.
+ * - 이번 달 비상금 이체를 이미 체크했으면 잔액에 그 이체가 들어 있다 → baseMonth = 이번 달(두 번 세지 않는다).
+ * - 아직 체크 전이면 잔액은 이체 전 금액이다 → baseMonth = 지난달. 그래야 나중에 체크할 때 이번 달 금액이 더해진다
+ *   (월급날 전에 잔액을 넣으면 이번 달 이체가 영영 빠지고, 체크하면 채우는 시점이 오히려 늦어지던 결함).
+ */
+export function adjustBalance(
+  goal: EmergencyGoal,
+  balance: number,
+  today: Date,
+  checkedThisMonth: boolean,
+): EmergencyGoal {
+  const current = monthKey(today);
+  return {
+    ...goal,
+    baseBalance: balance,
+    baseMonth: checkedThisMonth ? current : shiftMonth(current, -1),
+    updatedAt: nowIso(),
+  };
 }
 
 export function withMonths(goal: EmergencyGoal, months: GoalMonths): EmergencyGoal {
@@ -103,6 +120,19 @@ export function essentialOf(plan: PlanLike): { fixedTotal: number; living: numbe
   return { fixedTotal, living: amounts.living, essential: fixedTotal + amounts.living };
 }
 
+/**
+ * 기록 한 달의 비상금 금액. isValidRecord는 snapshot을 검사하지 않으므로(옛 빌드·손으로 고친 데이터) 여기서 막는다 —
+ * snapshot이 없거나 숫자가 아니면 0이다(모르는 금액을 지어내지 않는다). 던지지 않는다.
+ */
+function emergencyAmountOf(record: unknown): number {
+  try {
+    const amount = (record as { snapshot?: { amounts?: { emergency?: unknown } } } | null)?.snapshot?.amounts?.emergency;
+    return typeof amount === "number" && Number.isFinite(amount) && amount > 0 ? amount : 0;
+  } catch {
+    return 0;
+  }
+}
+
 /** 순수 함수 — 저장소를 읽거나 쓰지 않는다. store는 검증된 기록(loadRecords)이다. */
 export function summarizeGoal(goal: EmergencyGoal, plan: PlanLike, store: RecordStore, today: Date): GoalSummary {
   const { fixedTotal, living, essential } = essentialOf(plan);
@@ -111,12 +141,12 @@ export function summarizeGoal(goal: EmergencyGoal, plan: PlanLike, store: Record
 
   let saved = goal.baseBalance;
   for (const [month, record] of Object.entries(store.records)) {
-    if (month > goal.baseMonth && record.checked.emergency) saved += record.snapshot.amounts.emergency;
+    if (month > goal.baseMonth && record.checked?.emergency === true) saved += emergencyAmountOf(record);
   }
 
   const thisRecord = store.records[current];
-  const checkedThisMonth = thisRecord?.checked.emergency === true;
-  const thisMonthAdded = current > goal.baseMonth && checkedThisMonth ? thisRecord.snapshot.amounts.emergency : 0;
+  const checkedThisMonth = thisRecord?.checked?.emergency === true;
+  const thisMonthAdded = current > goal.baseMonth && checkedThisMonth ? emergencyAmountOf(thisRecord) : 0;
 
   if (essential <= 0) {
     return {
@@ -130,8 +160,10 @@ export function summarizeGoal(goal: EmergencyGoal, plan: PlanLike, store: Record
   let reachMonth: string | null = null;
   if (!reached && monthlyEmergency > 0) {
     const n = Math.ceil((target - saved) / monthlyEmergency);
-    // 이번 달 비상금을 이미 옮겼으면 다음 이체는 다음 달부터, 아니면 이번 달 이체가 첫 번째다.
-    reachMonth = shiftMonth(current, checkedThisMonth ? n : n - 1);
+    // 이번 달 이체가 아직 남아 있으면(기준 달 뒤이고 체크 전) 그 이체가 첫 번째, 아니면 다음 달부터다.
+    // 기준 달이 이번 달이면(잔액 맞추기) 이번 달 금액은 이미 잔액에 들어 있으니 체크 여부와 무관하게 다음 달부터다.
+    const thisMonthPending = current > goal.baseMonth && !checkedThisMonth;
+    reachMonth = shiftMonth(current, thisMonthPending ? n - 1 : n);
   }
 
   return {
@@ -174,7 +206,7 @@ export function foldPrunedIntoGoal(pruned: [month: string, raw: unknown][]): boo
       if (!MONTH_RE.test(month) || month <= goal.baseMonth) continue;
       if (month > maxMonth) maxMonth = month;
       const record = normalizeLegacyRecord(month, value);
-      if (isValidRecord(month, record) && record.checked.emergency) add += record.snapshot.amounts.emergency;
+      if (isValidRecord(month, record) && record.checked.emergency) add += emergencyAmountOf(record);
     }
     if (maxMonth === goal.baseMonth) return true;
 

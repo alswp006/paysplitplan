@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Button, Paragraph } from "@toss/tds-mobile";
 import { loadFullScreenAd, showFullScreenAd } from "@apps-in-toss/web-framework";
-import { CARD_INSET, SURFACE } from "@/lib/theme";
+import { CARD_INSET, SURFACE, TEXT_SUBTLE_ON_TINT } from "@/lib/theme";
 
 interface TossRewardAdProps {
   /** 보상형 광고 그룹 ID(adGroupId) — 앱인토스 콘솔 발급값. 비어 있으면 게이트는 그냥 열린다. */
@@ -151,13 +151,15 @@ export function TossRewardAd({
     safeCall(unsubShowRef.current);
     unsubShowRef.current = null;
     clearShowTimer();
-    // 재생이 시작조차 안 되면 연다. 첫 이벤트가 오면 해제한다 — 30초짜리 영상 도중에 열리지 않게.
+    // 재생이 시작조차 안 되면 연다. 화면에 뜬 신호(show·impression 등)가 오면 해제한다 — 30초짜리 영상 도중에
+    // 열리지 않게. `requested`는 해제하지 않는다: 요청만 받고 호스트가 멈추면(네이티브 멈춤·백그라운드 전환)
+    // 버튼이 "광고를 보여 주고 있어요"로 영영 잠겼다(fail-open 위반).
     showTimerRef.current = setTimeout(failOpen, timeoutMs);
     try {
       const unsubscribe = showFullScreenAd({
         options: { adGroupId },
         onEvent: (event) => {
-          clearShowTimer();
+          if (event.type !== "requested") clearShowTimer();
           switch (event.type) {
             case "userEarnedReward":
               reward();
@@ -207,7 +209,7 @@ export function TossRewardAd({
         backgroundColor: SURFACE.sunken,
       }}
     >
-      <Paragraph.Text typography="t6" color="var(--adaptiveGrey600)">
+      <Paragraph.Text typography="t6" color={TEXT_SUBTLE_ON_TINT}>
         {retry ? RETRY_DESCRIPTION : description}
       </Paragraph.Text>
       <Button variant="weak" size="large" display="block" disabled={status !== "ready"} onClick={handleWatch}>

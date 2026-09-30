@@ -3,7 +3,7 @@ import { Card } from "@/components/Card";
 import { CategoryBadge } from "@/components/CategoryBadge";
 import { formatWon } from "@/lib/format";
 import { calculateAllocation } from "@/lib/plan";
-import { LIST_CARD_PADDING, SURFACE, TEXT_INSET_BOTTOM, TEXT_INSET_TOP } from "@/lib/theme";
+import { LIST_CARD_PADDING, SURFACE, TEXT_INSET_BOTTOM, TEXT_INSET_TOP, TEXT_SUBTLE_ON_TINT } from "@/lib/theme";
 import type { CategoryKey, PlanDraft } from "@/lib/types";
 
 /**
@@ -21,7 +21,7 @@ export function YearProjection({ plan }: { plan: Pick<PlanDraft, "salary" | "fix
   return (
     <Card testId="year-projection" style={{ padding: LIST_CARD_PADDING, backgroundColor: SURFACE.sunken }}>
       <div style={TEXT_INSET_TOP}>
-        <Paragraph.Text typography="t4">이 계획대로 1년이면</Paragraph.Text>
+        <Paragraph.Text typography="t4" role="heading" aria-level={2}>이 계획대로 1년이면</Paragraph.Text>
       </div>
       <Spacing size={8} />
       {rows.map((r) => (
@@ -39,7 +39,7 @@ export function YearProjection({ plan }: { plan: Pick<PlanDraft, "salary" | "fix
       ))}
       <Spacing size={8} />
       <div style={TEXT_INSET_BOTTOM}>
-        <Paragraph.Text typography="t6" color="var(--adaptiveGrey600)">
+        <Paragraph.Text typography="t6" color={TEXT_SUBTLE_ON_TINT}>
           매달 계획대로 옮긴다고 가정한 단순 합계예요
         </Paragraph.Text>
       </div>
