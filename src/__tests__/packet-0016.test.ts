@@ -10,7 +10,8 @@ mockAppsInToss();
 
 // ── 계약 (Coder가 이 시그니처대로 만든다) ──
 // src/pages/NotFound.tsx  (default export NotFound, props 없음 — 독립 화면)
-//   - data-testid="not-found" 영역 안에: Asset.ContentIcon, 제목 '페이지를 찾을 수 없어요',
+//   - data-testid="not-found" 영역 안에: 아이콘(번들 lucide SearchX — 2026-09-30 static.toss.im 의존 Asset.ContentIcon에서 교체),
+//     제목 '페이지를 찾을 수 없어요',
 //     보조 문구 '주소가 바뀌었거나 없는 화면이에요', '홈으로 가기' 버튼.
 //   - 마운트 시 logImpression('not_found') 1회.
 //   - 버튼 onClick: navigate('/', { replace: true }) — 히스토리를 쌓지 않는다.
@@ -88,7 +89,8 @@ describe("404 화면 (*)", () => {
     const area = screen.getByTestId("not-found");
     expect(within(area).getByText("페이지를 찾을 수 없어요")).toBeInTheDocument();
     expect(within(area).getByText("주소가 바뀌었거나 없는 화면이에요")).toBeInTheDocument();
-    expect(area.querySelector("[data-content-icon]")).not.toBeNull();
+    // 아이콘은 네트워크(static.toss.im) 없이 그려지는 번들 SVG다(샌드박스·차단 환경에서 깨진 이미지 방지).
+    expect(area.querySelector("svg")).not.toBeNull();
     expect(screen.getAllByRole("button", { name: "홈으로 가기" })).toHaveLength(1);
     expect(screen.queryByTestId("home-probe")).toBeNull();
   });

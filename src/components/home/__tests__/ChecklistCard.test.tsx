@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { mockTds, mockAppsInToss, mockRouter, mockOpenToast } from "@/__tests__/__helpers__/mocks";
 import { ChecklistCard } from "@/components/home/ChecklistCard";
+import * as recordToggle from "@/lib/recordToggle";
 import { loadRecords, PLAN_KEY } from "@/lib/storage";
 import type { SalaryPlan } from "@/lib/types";
 
@@ -45,12 +46,19 @@ describe("ChecklistCard", () => {
     expect(screen.getByText(/저축 통장 · 720,000원/)).toBeInTheDocument();
   });
 
-  it("행을 탭하면 한 번만 토글되고 이번 달 기록에 저장된다", async () => {
+  it("행 탭은 토글하지 않고, 스위치를 누르면 한 번만 토글되어 이번 달 기록에 저장된다", async () => {
+    const toggle = vi.spyOn(recordToggle, "toggleRecordItem");
     renderCard();
     const row = screen.getAllByTestId("checklist-row")[1];
     fireEvent.click(row);
+    expect(toggle).toHaveBeenCalledTimes(0);
+    expect(screen.getByTestId("progress-text")).toHaveTextContent("0/4 완료 · 0%");
+
+    fireEvent.click(screen.getByRole("switch", { name: "저축 통장 이체 완료" }));
     await waitFor(() => expect(screen.getByTestId("progress-text")).toHaveTextContent("1/4 완료 · 25%"));
+    expect(toggle).toHaveBeenCalledTimes(1);
     expect(loadRecords().records["2026-09"].checked.saving).toBe(true);
     expect(mockOpenToast).not.toHaveBeenCalled();
+    toggle.mockRestore();
   });
 });

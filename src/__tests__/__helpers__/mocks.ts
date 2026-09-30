@@ -88,7 +88,9 @@ export function mockTds() {
           { "data-variant": variant, ...containerProps },
           label != null ? h("label", { htmlFor: inputId, hidden: labelHidden || undefined, "data-label-option": labelOption ?? "appear" }, label) : null,
           slot("prefix", prefix),
-          h("input", { ref, id: inputId, "aria-invalid": hasError ? true : undefined, ...props }),
+          // 벤더는 input에 `"aria-label": placeholder`를 먼저 넣고 props를 펼친다(2.5.1 런타임) — 앱이
+          // aria-label을 넘기면 그 값이 이기고, 안 넘기면 접근성 이름이 placeholder("예: 3,000,000")가 된다.
+          h("input", { ref, id: inputId, "aria-label": props.placeholder, "aria-invalid": hasError ? true : undefined, ...props }),
           slot("suffix", suffix),
           slot("right", right),
           onClear && !empty ? h("button", { type: "button", "aria-label": clearableButtonAriaLabel ?? "지우기", onClick: onClear }) : null,
@@ -478,13 +480,34 @@ export function mockAppsInToss() {
       click: vi.fn(async () => {}),
     };
 
-    // Imperative ad API — auto-fires onEvent so tests don't hang
-    const loadFullScreenAd = vi.fn((opts: { onEvent?: (e: any) => void; onError?: (e: any) => void }) => {
-      setTimeout(() => opts.onEvent?.({ type: "loaded" }), 0);
-    });
-    const showFullScreenAd = vi.fn((opts: { onEvent?: (e: any) => void; onError?: (e: any) => void }) => {
-      setTimeout(() => opts.onEvent?.({ type: "rewarded" }), 0);
-    });
+    // 전면·보상형 광고 — 벤더 모양(web-framework 3.6.0 .d.ts): `({ options?: { adGroupId }, onEvent, onError })`를
+    // 받고 **구독 해제 함수를 돌려주며**, `isSupported()`를 단다. 보상 신호는 `userEarnedReward` 하나다 —
+    // SDK에 `rewarded` 이벤트는 없다(예전 목이 그걸로 보상해서, 보상 조건을 안 보는 소스가 초록이었다).
+    // 기본 흐름: load → loaded / show → requested·show·impression·userEarnedReward·dismissed.
+    // 다른 흐름은 테스트에서 mockImplementationOnce로 바꾼다.
+    const loadFullScreenAd = Object.assign(
+      vi.fn((p: { options?: { adGroupId: string }; onEvent: (e: any) => void; onError: (e: Error) => void }) => {
+        const t = setTimeout(() => p.onEvent({ type: "loaded" }), 0);
+        return vi.fn(() => clearTimeout(t));
+      }),
+      { isSupported: vi.fn(() => true) },
+    );
+    const showFullScreenAd = Object.assign(
+      vi.fn((p: { options?: { adGroupId: string }; onEvent: (e: any) => void; onError: (e: Error) => void }) => {
+        const t = setTimeout(() => {
+          for (const e of [
+            { type: "requested" },
+            { type: "show" },
+            { type: "impression" },
+            { type: "userEarnedReward", data: { unitType: "reward", unitAmount: 1 } },
+            { type: "dismissed" },
+          ])
+            p.onEvent(e);
+        }, 0);
+        return vi.fn(() => clearTimeout(t));
+      }),
+      { isSupported: vi.fn(() => true) },
+    );
     // TossAds banner API (real SDK exports — see @apps-in-toss/web-bridge .d.ts)
     const TossAds = {
       initialize: Object.assign(vi.fn(), { isSupported: () => true }),
@@ -626,9 +649,9 @@ export function mockAnalytics() {
 // In tests, render the children directly (ad always "watched").
 export function mockTossRewardAd() {
   vi.mock("@/components/TossRewardAd", () => ({
-    TossRewardAd: ({ children, onReward }: any) => {
-      // Auto-trigger onReward in tests to unlock content
-      if (onReward) setTimeout(onReward, 0);
+    TossRewardAd: ({ children, onRewarded }: any) => {
+      // Auto-trigger onRewarded in tests to unlock content (실제 컴포넌트의 prop 이름과 같다)
+      if (onRewarded) setTimeout(onRewarded, 0);
       return children;
     },
     default: ({ children }: any) => children,

@@ -75,7 +75,7 @@ describe("전체 흐름 (광고 env 비어 있음)", () => {
     const lockedTier = await screen.findByTestId("locked-tier");
     expect(within(lockedTier).getByTestId("bracket-compare")).toBeInTheDocument();
     expect(within(lockedTier).getByTestId("trend-block")).toBeInTheDocument();
-    expect(screen.queryByText("광고 준비 중...")).toBeNull();
+    expect(screen.queryByText("광고를 준비하고 있어요")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "이 계획 저장하기" }));
     fireEvent.click(await screen.findByRole("button", { name: "홈에서 이체 체크하기" }));

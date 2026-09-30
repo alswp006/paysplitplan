@@ -39,6 +39,22 @@ export function buildChecklist(plan: SalaryPlan, store: RecordStore, today: Date
   return { rows, checkedCount, total, percent, progressText: `${checkedCount}/${total} 완료 · ${percent}%` };
 }
 
+/**
+ * 이번 달 기록의 rate·eligible을 **현재 계획으로 다시 센 사본**을 돌려준다(순수 함수 — 저장하지 않는다).
+ * 홈 체크리스트는 현재 계획으로 세고 기록 탭은 저장값을 읽어서, 계획을 바꾸면 같은 달이 75%와 100%로
+ * 갈렸다. 기록 탭·연속 기록이 이 사본을 읽으면 두 화면이 같은 숫자를 본다. 이번 달 기록이 없으면 store 그대로.
+ */
+export function withLiveCurrentMonth(store: RecordStore, plan: SalaryPlan, today: Date): RecordStore {
+  const month = monthKey(today);
+  const record = store.records[month];
+  if (!record) return store;
+  const view = buildChecklist(plan, store, today);
+  return {
+    ...store,
+    records: { ...store.records, [month]: { ...record, rate: view.percent, eligible: view.rows.map((r) => r.key) } },
+  };
+}
+
 /** 이행률이 100 미만에서 100이 되는 순간에만 true — 완료 안내를 한 번만 띄우는 기준. */
 export function isCompletionTransition(prevPercent: number, nextPercent: number): boolean {
   return prevPercent < 100 && nextPercent === 100;

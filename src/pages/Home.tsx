@@ -10,8 +10,8 @@ import { EmptyState } from '@/components/StateView';
 import { ChecklistCard } from '@/components/home/ChecklistCard';
 import { logClick } from '@/lib/analytics';
 import { getToday } from '@/lib/date';
-import { getNextPayday } from '@/lib/dday';
-import { loadPlan } from '@/lib/storage';
+import { buildHomeHero } from '@/lib/homeHero';
+import { loadPlan, loadRecords } from '@/lib/storage';
 
 const TABS = [
   { label: '홈', path: '/', icon: <House size={22} aria-hidden /> },
@@ -30,8 +30,10 @@ export default function Home() {
   const navigate = useNavigate();
   // 마운트 때 1회만 읽는다. 손상된 계획은 loadPlan이 키를 지우고 null을 돌려준다.
   const [plan] = useState(() => loadPlan());
+  // 히어로가 체크 토글에 바로 반응하도록 기록을 여기서도 들고 있는다(쓰기는 ChecklistCard의 토글뿐).
+  const [store, setStore] = useState(loadRecords);
 
-  const top = <Top title={<Top.TitleParagraph>월급 쪼개기</Top.TitleParagraph>} />;
+  const top = <Top title={<Top.TitleParagraph>월급쪼개기</Top.TitleParagraph>} />;
 
   if (!plan) {
     return (
@@ -59,25 +61,25 @@ export default function Home() {
     );
   }
 
-  const { dday, label } = getNextPayday(getToday(), plan.payday);
+  const hero = buildHomeHero(plan, store, getToday());
 
   return (
     <ScreenScaffold top={top} bottom={<FloatingTabBar items={TABS} />}>
       <Spacing size={16} />
       <SummaryHero
         testId="dday-hero"
-        label="다음 월급날까지"
+        label={hero.label}
         value={
           <>
-            <Paragraph.Text typography="t2">{`D-${dday}`}</Paragraph.Text>
+            <Paragraph.Text typography="t2">{hero.value}</Paragraph.Text>
             {/* 스크린리더·텍스트 추출에서 'D-1'과 '9월 30일'이 'D-19월'로 붙지 않게 한다 */}
             {' '}
           </>
         }
-        caption={label}
+        caption={hero.caption}
       />
       <Spacing size={24} />
-      <ChecklistCard plan={plan} />
+      <ChecklistCard plan={plan} onStoreChange={setStore} />
       <Spacing size={24} />
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         <Button

@@ -1,5 +1,6 @@
 import { CATEGORY_ORDER, calculateAllocation } from "./plan";
 import { getToday, monthKey, shiftMonth } from "./date";
+import { SALARY_MAX } from "./planForm";
 import type { calculateInsightsFn } from "./contract";
 import type { BracketScenario, MonthRecord, PlanDraft, RecordStore, SalaryPlan, TrendSummary } from "./types";
 
@@ -9,7 +10,8 @@ const TREND_MONTHS = 6;
 
 /**
  * 월급 −100만~+100만 원을 50만 원 단위 5구간으로 나눠 저축액을 비교한다.
- * 월급이 0 이하이거나 고정비 합 이하인 구간은 뺀다.
+ * 월급이 0 이하이거나 고정비 합 이하인 구간, 입력 상한(SALARY_MAX)을 넘는 구간,
+ * 내 월급이 아닌데 저축이 0원인 구간은 뺀다(비교할 것이 없는 행).
  */
 export function getBracketScenarios(
   plan: Pick<PlanDraft, "salary" | "fixedCosts" | "ratios">,
@@ -18,7 +20,8 @@ export function getBracketScenarios(
   for (const offset of BRACKET_OFFSETS) {
     const salary = plan.salary + offset * BRACKET_STEP;
     const { fixedTotal, amounts } = calculateAllocation(salary, plan.fixedCosts, plan.ratios);
-    if (salary <= 0 || salary <= fixedTotal) continue;
+    if (salary <= 0 || salary <= fixedTotal || salary > SALARY_MAX) continue;
+    if (offset !== 0 && amounts.saving === 0) continue;
     rows.push({
       salary,
       saving: amounts.saving,

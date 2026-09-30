@@ -10,9 +10,10 @@ export const CATEGORY_LABEL: Record<CategoryKey, string> = {
 export const CATEGORY_ORDER: CategoryKey[] = ["living", "saving", "emergency", "leisure"];
 
 export const PRESETS: Record<"p532" | "p442" | "p622", Preset> = {
-  p532: { id: "p532", name: "5:3:2 기본", ratios: [50, 30, 10, 10] },
-  p442: { id: "p442", name: "4:4:2 저축 집중", ratios: [40, 40, 10, 10] },
-  p622: { id: "p622", name: "6:2:2 여유", ratios: [60, 20, 10, 10] },
+  // 이름의 숫자는 통장 4개(생활비:저축:비상금:여가) 비율 그대로다.
+  p532: { id: "p532", name: "기본 5:3:1:1", ratios: [50, 30, 10, 10] },
+  p442: { id: "p442", name: "저축 집중 4:4:1:1", ratios: [40, 40, 10, 10] },
+  p622: { id: "p622", name: "여유 6:2:1:1", ratios: [60, 20, 10, 10] },
 };
 
 export interface AllocationResult {

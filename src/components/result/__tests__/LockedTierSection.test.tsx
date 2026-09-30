@@ -24,6 +24,18 @@ beforeEach(() => {
 });
 
 describe("LockedTierSection", () => {
+  it("극단값(월급 1억 · 남는 돈 1원)이면 1억 초과·저축 0원 비교 행 없이 내 월급 행 1개만 보인다", () => {
+    render(
+      <LockedTierSection
+        plan={{ ...plan, salary: 100_000_000, fixedCosts: [{ ...plan.fixedCosts[0], amount: 99_999_999 }] }}
+      />,
+    );
+    const rows = screen.getAllByTestId("bracket-row");
+    expect(rows).toHaveLength(1);
+    expect(rows[0].textContent).toContain("100,000,000원");
+    expect(rows[0].textContent).toContain("내 월급");
+  });
+
   it("기록이 없으면 구간 5행과 안내 문구만 보이고 노출 로그는 1회", () => {
     const { rerender } = render(<LockedTierSection plan={plan} />);
     rerender(<LockedTierSection plan={plan} />);

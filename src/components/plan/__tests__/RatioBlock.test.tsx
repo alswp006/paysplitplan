@@ -29,7 +29,7 @@ describe("RatioBlock 햅틱", () => {
     const onChange = vi.fn();
     render(<RatioBlock ratios={[50, 30, 10, 10]} presetId="p532" available={2400000} onChange={onChange} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "4:4:2 저축 집중" }));
+    fireEvent.click(screen.getByRole("button", { name: "저축 집중 4:4:1:1" }));
     expect(generateHapticFeedback).toHaveBeenLastCalledWith({ type: "tickWeak" });
 
     fireEvent.click(screen.getByRole("button", { name: "저축 5% 늘리기" }));

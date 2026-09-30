@@ -7,7 +7,7 @@ import { SubmitFooter } from "@/components/BottomCTA";
 import { RatioBlock } from "@/components/plan/RatioBlock";
 import { FixedCostSheet } from "@/components/plan/FixedCostSheet";
 import { logClick } from "@/lib/analytics";
-import { formatManwon, formatWon, parseAmountInput } from "@/lib/format";
+import { formatAmountRaw, formatManwon, formatWon } from "@/lib/format";
 import { PRESETS, resolvePresetId } from "@/lib/plan";
 import { sumRatios } from "@/lib/ratioForm";
 import {
@@ -27,6 +27,8 @@ const DEFAULT_PAYDAY = "25";
 // TDS 입력·리스트의 내장 좌우 패딩(20px)에 맞춘 맨 텍스트·버튼용 거터 — 정렬선을 20px 하나로 통일한다.
 const GUTTER = { padding: "0 20px" } as const;
 const MAX_FIXED_COST_TOAST = "고정비는 최대 10개까지 추가할 수 있어요";
+// 비율 오류의 자세한 문구("…맞춰주세요 (현재 90%)")는 RatioBlock이 칸 바로 아래에 보여준다 — 하단 안내는 다음 행동만 말한다.
+const RATIO_HINT = "비율 합계가 100%가 되면 결과를 볼 수 있어요";
 
 function tickMedium() {
   try {
@@ -34,12 +36,6 @@ function tickMedium() {
   } catch {
     /* WebView 밖(브라우저/검수자 PC/jsdom)에서는 throw — 무시 */
   }
-}
-
-/** 해석 결과가 ok일 때만 콤마를 붙인다. 그 외는 원문 그대로(에러 문구와 함께 보여준다). */
-function formatSalaryRaw(raw: string): string {
-  const parsed = parseAmountInput(raw);
-  return parsed.kind === "ok" ? parsed.value.toLocaleString("ko-KR") : raw;
 }
 
 interface FormState {
@@ -87,6 +83,7 @@ export default function Plan() {
 
   // 월급 빈 값은 버튼을 막는 사유가 아니다 — 탭하면 에러를 보여준다
   const blockingError = (salary.empty ? null : salary.error) ?? payday.error ?? ratioError;
+  const footerHint = blockingError === null ? undefined : blockingError === ratioError ? RATIO_HINT : blockingError;
   const salaryErrorShown = salary.error !== null && (salaryTouched || !salary.empty);
   const paydayErrorShown = payday.error !== null && paydayTouched;
 
@@ -129,7 +126,7 @@ export default function Plan() {
           label="배분 결과 보기"
           onClick={submit}
           disabled={blockingError !== null}
-          hint={blockingError ?? undefined}
+          hint={footerHint}
         />
       }
     >
@@ -137,13 +134,14 @@ export default function Plan() {
         variant="box"
         label="월급"
         labelOption="sustain"
+        aria-label="월급"
         placeholder="예: 3,000,000"
         inputMode="numeric"
         enterKeyHint="next"
         value={salaryRaw}
         onChange={(e) => {
           setSalaryTouched(true);
-          setField({ salaryRaw: formatSalaryRaw(e.target.value) });
+          setField({ salaryRaw: formatAmountRaw(e.target.value) });
         }}
         help={salaryErrorShown ? (salary.error ?? undefined) : formatManwon(salary.value) || undefined}
         hasError={salaryErrorShown}
@@ -153,6 +151,7 @@ export default function Plan() {
         variant="box"
         label="월급날"
         labelOption="sustain"
+        aria-label="월급날"
         placeholder="예: 25"
         inputMode="numeric"
         enterKeyHint="done"
@@ -173,7 +172,7 @@ export default function Plan() {
       {fixedCosts.length === 0 ? (
         <div style={GUTTER}>
           <Paragraph.Text typography="t6" color="var(--adaptiveGrey600)">
-            월세·통신비처럼 매달 나가는 돈을 추가해보세요
+            월세·통신비처럼 매달 나가는 돈을 넣어 주세요
           </Paragraph.Text>
           <Spacing size={12} />
         </div>

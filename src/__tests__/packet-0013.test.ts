@@ -113,7 +113,7 @@ describe("배분 결과 화면 (/result)", () => {
     const free = screen.getByTestId("free-tier");
     expect(gate.contains(free)).toBe(false);
     expect(free.closest('[data-testid="reward-gate"]')).toBeNull();
-    expect(within(free).getByRole("button", { name: "친구에게 공유하기" })).toBeInTheDocument();
+    expect(within(free).getByRole("button", { name: "비율 공유하기" })).toBeInTheDocument();
 
     const lockedAll = screen.getAllByTestId("locked-tier");
     expect(lockedAll).toHaveLength(1);
@@ -201,15 +201,22 @@ describe("배분 결과 화면 (/result)", () => {
     errorSpy.mockRestore();
   });
 
-  it("AC-5[P2]: '친구에게 공유하기'를 탭하면 logClick('result_share')와 shareApp이 1회씩 호출된다", () => {
+  it("AC-5[P2]: '비율 공유하기'를 탭하면 logClick('result_share')와 shareApp이 1회씩 호출된다 — 월급 없이 비율만, intoss 경로", () => {
     setState({ draft: EXAMPLE_A });
     renderResult();
 
     expect(mockShareApp).toHaveBeenCalledTimes(0);
-    fireEvent.click(screen.getByRole("button", { name: "친구에게 공유하기" }));
+    fireEvent.click(screen.getByRole("button", { name: "비율 공유하기" }));
 
     const shareLogs = mockLogClick.mock.calls.filter(([name]) => name === "result_share");
     expect(shareLogs).toHaveLength(1);
     expect(mockShareApp).toHaveBeenCalledTimes(1);
+    expect(mockShareApp).toHaveBeenCalledWith({
+      message: "월급쪼개기로 이렇게 나눠요\n생활비 50 · 저축 30 · 비상금 10 · 여가 10\n내 월급으로 계산해 보기",
+      path: "intoss://paysplitplan/plan?r=50-30-10-10",
+    });
+    // 금액(월급·통장 금액)은 메시지에 싣지 않는다
+    const [{ message }] = mockShareApp.mock.calls[0] as unknown as [{ message: string }];
+    expect(message).not.toMatch(/\d{1,3}(,\d{3})+원|만 원/);
   });
 });

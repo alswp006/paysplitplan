@@ -96,15 +96,15 @@ describe("비율 블록 컴포넌트 (RatioBlock)", () => {
     expect(sumRatios([50, 30, 10, 0])).toBe(90);
   });
 
-  it("AC-1[P0]: '4:4:2 저축 집중' 칩 탭 → onChange([40,40,10,10], 'p442') 1회", () => {
+  it("AC-1[P0]: '저축 집중 4:4:1:1' 칩 탭 → onChange([40,40,10,10], 'p442') 1회", () => {
     const { onChange } = renderBlock({ ratios: [50, 30, 10, 10], presetId: "p532", available: AVAILABLE });
 
     // 프리셋 3개 + 직접 조정, 칩 4개
-    for (const name of ["5:3:2 기본", "4:4:2 저축 집중", "6:2:2 여유", "직접 조정"]) {
+    for (const name of ["기본 5:3:1:1", "저축 집중 4:4:1:1", "여유 6:2:1:1", "직접 조정"]) {
       expect(screen.getByRole("button", { name })).toBeTruthy();
     }
 
-    fireEvent.click(screen.getByRole("button", { name: "4:4:2 저축 집중" }));
+    fireEvent.click(screen.getByRole("button", { name: "저축 집중 4:4:1:1" }));
     expect(onChange).toHaveBeenCalledTimes(1);
     expect(onChange).toHaveBeenCalledWith([40, 40, 10, 10], "p442");
   });
@@ -116,7 +116,7 @@ describe("비율 블록 컴포넌트 (RatioBlock)", () => {
     expectRow(CATEGORY.saving, 40, "960,000원");
     expectRow(CATEGORY.emergency, 10, "240,000원");
     expectRow(CATEGORY.leisure, 10, "240,000원");
-    expect(screen.getByRole("button", { name: "4:4:2 저축 집중" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("button", { name: "저축 집중 4:4:1:1" }).getAttribute("aria-pressed")).toBe("true");
     expect(screen.getByTestId("ratio-sum").textContent).toContain("합계 100%");
   });
 
@@ -135,12 +135,12 @@ describe("비율 블록 컴포넌트 (RatioBlock)", () => {
 
   it("AC-2[P0]: 저축 35 · custom으로 렌더하면 '직접 조정' 선택, 합계 105%, 행 금액은 floor(available×r/100)", () => {
     const { rerender } = renderBlock({ ratios: [50, 30, 10, 10], presetId: "p532", available: AVAILABLE });
-    expect(screen.getByRole("button", { name: "5:3:2 기본" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("button", { name: "기본 5:3:1:1" }).getAttribute("aria-pressed")).toBe("true");
 
     rerender({ ratios: [50, 35, 10, 10], presetId: "custom", available: AVAILABLE });
 
     expect(screen.getByRole("button", { name: "직접 조정" }).getAttribute("aria-pressed")).toBe("true");
-    expect(screen.getByRole("button", { name: "5:3:2 기본" }).getAttribute("aria-pressed")).toBe("false");
+    expect(screen.getByRole("button", { name: "기본 5:3:1:1" }).getAttribute("aria-pressed")).toBe("false");
     expect(screen.getByTestId("ratio-sum").textContent).toContain("합계 105%");
     expectRow(CATEGORY.living, 50, "1,200,000원");
     expectRow(CATEGORY.saving, 35, "840,000원");
@@ -218,11 +218,11 @@ describe("비율 블록 컴포넌트 (RatioBlock)", () => {
     }
   });
 
-  it("AC-5[P1]: presetId='p532'면 '5:3:2 기본' 칩만 선택 상태, 소스에 HEX 색상 하드코딩이 없다", () => {
+  it("AC-5[P1]: presetId='p532'면 '기본 5:3:1:1' 칩만 선택 상태, 소스에 HEX 색상 하드코딩이 없다", () => {
     renderBlock({ ratios: [50, 30, 10, 10], presetId: "p532", available: AVAILABLE });
 
-    expect(screen.getByRole("button", { name: "5:3:2 기본" }).getAttribute("aria-pressed")).toBe("true");
-    for (const name of ["4:4:2 저축 집중", "6:2:2 여유", "직접 조정"]) {
+    expect(screen.getByRole("button", { name: "기본 5:3:1:1" }).getAttribute("aria-pressed")).toBe("true");
+    for (const name of ["저축 집중 4:4:1:1", "여유 6:2:1:1", "직접 조정"]) {
       expect(screen.getByRole("button", { name }).getAttribute("aria-pressed")).toBe("false");
     }
 

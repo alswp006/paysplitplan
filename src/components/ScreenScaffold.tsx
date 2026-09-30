@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useLayoutEffect, type ReactNode } from "react";
 import { PageShell } from "./PageShell";
 
 /**
@@ -30,6 +30,17 @@ export function ScreenScaffold({
    */
   flush?: boolean;
 }) {
+  // 화면(라우트)이 바뀌면 맨 위에서 시작한다 — 라우터는 스크롤을 되돌리지 않아, 긴 계획 화면 끝에서
+  // "결과 보기"를 누르면 결과 화면이 중간부터 열렸다. window.scrollTo는 jsdom이 console.error를
+  // 찍어 쓰지 않는다. App.tsx·main.tsx는 건드리지 않고 모든 화면이 지나는 이 골격에서 한다.
+  useLayoutEffect(() => {
+    try {
+      (document.scrollingElement ?? document.documentElement).scrollTop = 0;
+    } catch {
+      /* noop */
+    }
+  }, []);
+
   return (
     <PageShell style={top ? { paddingTop: 0 } : undefined}>
       {top}

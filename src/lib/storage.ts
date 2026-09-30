@@ -26,6 +26,12 @@ export function removeItem(key: string): void {
 export const PLAN_KEY = "paysplit:plan:v1";
 export const RECORDS_KEY = "paysplit:records:v1";
 export const REVIEW_KEY = "paysplit:review:v1";
+/**
+ * 백업 키 — 검증에 실패한 원문을 **지우거나 덮어쓰기 전에** 여기 복사한다(사용자 데이터를 잃지 않는다).
+ * 최신 실패 원문 하나만 둔다(덮어쓰기). 복사에 실패하면 원문도 건드리지 않는다.
+ */
+export const PLAN_BACKUP_KEY = "paysplit:plan:v1:bak";
+export const RECORDS_BACKUP_KEY = "paysplit:records:v1:bak";
 
 type Obj = Record<string, unknown>;
 
@@ -38,6 +44,16 @@ function readRaw(key: string): string | null {
     return localStorage.getItem(key);
   } catch {
     return null;
+  }
+}
+
+/** 원문 문자열을 그대로 쓴다. 성공하면 true — 던지지 않는다. */
+function writeRaw(key: string, value: string): boolean {
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -62,12 +78,25 @@ function parsePlan(raw: string): SalaryPlan | null {
   }
 }
 
-/** 저장된 계획. 깨졌거나 검증에 실패하면 키를 지우고 null. 조용히 실패한다. */
+/**
+ * 저장된 계획을 **읽기만** 한다 — 쓰기·삭제 0회. 깨졌거나 검증에 실패하면 null.
+ * 마운트 후 저장소를 건드리면 안 되는 화면(기록 탭)과 저장 직후 재확인에 쓴다.
+ */
+export function peekPlan(): SalaryPlan | null {
+  const raw = readRaw(PLAN_KEY);
+  return raw === null ? null : parsePlan(raw);
+}
+
+/**
+ * 저장된 계획. 깨졌거나 검증에 실패하면 원문을 PLAN_BACKUP_KEY에 복사한 **뒤** 키를 지우고 null.
+ * 복사하지 못하면(용량 초과·저장소 차단) 원문을 지우지 않는다. 조용히 실패한다.
+ */
 export function loadPlan(): SalaryPlan | null {
   const raw = readRaw(PLAN_KEY);
   if (raw === null) return null;
   const plan = parsePlan(raw);
   if (plan) return plan;
+  if (!writeRaw(PLAN_BACKUP_KEY, raw)) return null;
   try {
     localStorage.removeItem(PLAN_KEY);
   } catch {
@@ -84,6 +113,8 @@ export function savePlan(draft: PlanDraft): SaveResult {
   const now = nowIso();
   const raw = readRaw(PLAN_KEY);
   const existing = raw === null ? null : parsePlan(raw);
+  // 검증에 실패한 원문을 덮어쓰기 전에 백업한다. 백업을 못 하면 쓰지 않는다(원문 보존).
+  if (raw !== null && existing === null && !writeRaw(PLAN_BACKUP_KEY, raw)) return { ok: false, error: "QUOTA" };
 
   const createdAt = existing ? existing.createdAt : now;
   const updatedAt = Date.parse(now) >= Date.parse(createdAt) ? now : createdAt;
@@ -126,22 +157,72 @@ export function loadRecords(): RecordStore {
   }
 }
 
-const MAX_RECORD_MONTHS = 24;
+export const MAX_RECORD_MONTHS = 24;
+const MONTH_KEY_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+/**
+ * 24개월 정리 — 단일 헬퍼. 'YYYY-MM' 키만 대상으로 최신 max개만 남기고(records를 직접 고친다)
+ * 지운 항목을 [month, 원문] 배열로 돌려준다. 달 형식이 아닌 키는 건드리지 않는다.
+ */
+export function pruneMonths(
+  records: Record<string, unknown>,
+  max: number = MAX_RECORD_MONTHS,
+): [month: string, raw: unknown][] {
+  const months = Object.keys(records).filter((k) => MONTH_KEY_RE.test(k)).sort();
+  const drop = months.slice(0, Math.max(0, months.length - max));
+  const pruned: [string, unknown][] = drop.map((m) => [m, records[m]]);
+  for (const m of drop) delete records[m];
+  return pruned;
+}
+
+/**
+ * 월별 기록 하나를 쓰는 **단일 쓰기 경로**. 원문(RECORDS_KEY) 위에 그 달 하나만 바꾼다.
+ * - 다른 달의 원문 항목은 유효하든 아니든 그대로 둔다(loadRecords가 걸러 읽을 뿐 지우지 않는다).
+ * - 원문 전체가 파싱되지 않거나 모양이 틀리면, 또는 대상 달의 원문이 검증을 통과하지 못하면
+ *   원문 전체를 RECORDS_BACKUP_KEY에 복사한 **뒤에만** 쓴다. 복사하지 못하면 쓰지 않고 QUOTA.
+ * - 24개월을 넘으면 pruneMonths로 가장 오래된 달부터 지운다.
+ * 던지지 않는다 — 쓰기 실패면 {ok:false, error:"QUOTA"}이고 기존 값이 그대로 남는다.
+ */
+export function writeMonthRecord(record: MonthRecord): SaveResult {
+  try {
+    const raw = readRaw(RECORDS_KEY);
+    let records: Record<string, unknown> = {};
+    if (raw !== null) {
+      let data: unknown = null;
+      let parsed = true;
+      try {
+        data = JSON.parse(raw);
+      } catch {
+        parsed = false;
+      }
+      if (parsed && isObj(data) && data.version === 1 && isObj(data.records)) {
+        records = { ...data.records };
+        const target = records[record.month];
+        if (target !== undefined && !isValidRecord(record.month, normalizeLegacyRecord(record.month, target))) {
+          if (!writeRaw(RECORDS_BACKUP_KEY, raw)) return { ok: false, error: "QUOTA" };
+        }
+      } else {
+        if (!writeRaw(RECORDS_BACKUP_KEY, raw)) return { ok: false, error: "QUOTA" };
+      }
+    }
+    records[record.month] = record;
+    pruneMonths(records);
+    localStorage.setItem(RECORDS_KEY, JSON.stringify({ version: 1, records }));
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "QUOTA" };
+  }
+}
 
 /**
  * 월별 기록 하나를 저장한다(contract `saveRecordFn`). 같은 month가 있으면 덮어쓰고,
- * 24개월을 넘으면 가장 오래된 month부터 지운다. 다른 레코드는 정규화·검증을 거쳐 함께 다시 쓰인다.
+ * 24개월을 넘으면 가장 오래된 month부터 지운다. 쓰기는 writeMonthRecord 하나로 한다.
  * 검증을 통과하지 못하는 기록은 저장하지 않는다. 던지지 않는다 — 쓰기 실패(QUOTA)면 기존 값이 그대로 남는다.
  */
 export function saveRecord(record: MonthRecord): void {
   try {
     if (!isValidRecord(record.month, record)) return;
-    const store = loadRecords();
-    const records: RecordStore["records"] = { ...store.records, [record.month]: record };
-    const months = Object.keys(records).sort();
-    for (const month of months.slice(0, Math.max(0, months.length - MAX_RECORD_MONTHS))) delete records[month];
-    const next: RecordStore = { version: 1, records };
-    localStorage.setItem(RECORDS_KEY, JSON.stringify(next));
+    writeMonthRecord(record);
   } catch {
     // 용량 초과·저장소 차단 — 기존 값 유지.
   }

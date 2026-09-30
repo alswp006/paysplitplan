@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ListRow, Paragraph, Spacing, Switch, useToast } from "@toss/tds-mobile";
 import { generateHapticFeedback } from "@apps-in-toss/web-framework";
-import type { CategoryKey, SalaryPlan } from "@/lib/types";
+import type { CategoryKey, RecordStore, SalaryPlan } from "@/lib/types";
 import { Card } from "@/components/Card";
 import { logClick } from "@/lib/analytics";
 import { getToday } from "@/lib/date";
@@ -12,8 +12,8 @@ import { requestReviewOnce } from "@/lib/review";
 import { toggleRecordItem } from "@/lib/recordToggle";
 import { loadRecords } from "@/lib/storage";
 
-const COMPLETE_TOAST = "이번 달 통장 쪼개기 완료!";
-const FAIL_TOAST = "저장하지 못했어요. 다시 시도해주세요";
+const completeToast = (month: number) => `${month}월 이체를 모두 체크했어요`;
+const FAIL_TOAST = "저장 공간이 부족해 체크하지 못했어요. 잠시 뒤 다시 눌러 주세요";
 
 function haptic(type: "tickWeak" | "success") {
   try {
@@ -23,11 +23,18 @@ function haptic(type: "tickWeak" | "success") {
   }
 }
 
-function stopBubble(e: { stopPropagation: () => void }) {
-  e.stopPropagation();
-}
-
-export function ChecklistCard({ plan }: { plan: SalaryPlan }) {
+/**
+ * 이번 달 이체 체크 카드. 토글은 행 오른쪽 Switch 하나로만 한다(행 전체를 버튼으로 두면 버튼 안에
+ * 스위치가 들어가 스크린리더가 "버튼 안의 스위치"로 읽는다).
+ * `onStoreChange`를 주면 토글이 저장된 직후 새 기록으로 불린다(홈 히어로가 바로 따라오게).
+ */
+export function ChecklistCard({
+  plan,
+  onStoreChange,
+}: {
+  plan: SalaryPlan;
+  onStoreChange?: (store: RecordStore) => void;
+}) {
   const toast = useToast();
   const [store, setStore] = useState(() => loadRecords());
   const view = buildChecklist(plan, store, getToday());
@@ -41,16 +48,18 @@ export function ChecklistCard({ plan }: { plan: SalaryPlan }) {
     logClick("checklist_toggle");
     const result = toggleRecordItem(key, next);
     if (!result.ok) {
-      toast.openToast(FAIL_TOAST);
+      toast.openToast(FAIL_TOAST, { higherThanCTA: true });
       return;
     }
 
+    const today = getToday();
     const nextStore = loadRecords();
-    const nextView = buildChecklist(plan, nextStore, getToday());
+    const nextView = buildChecklist(plan, nextStore, today);
     setStore(nextStore);
+    onStoreChange?.(nextStore);
     if (isCompletionTransition(view.percent, nextView.percent)) {
       haptic("success");
-      toast.openToast(COMPLETE_TOAST);
+      toast.openToast(completeToast(today.getMonth() + 1), { higherThanCTA: true });
       requestReviewOnce();
     }
   };
@@ -67,7 +76,6 @@ export function ChecklistCard({ plan }: { plan: SalaryPlan }) {
         <ListRow
           key={row.key}
           data-testid="checklist-row"
-          onClick={() => toggle(row.key)}
           contents={
             <ListRow.Texts
               type="2RowTypeA"
@@ -75,12 +83,7 @@ export function ChecklistCard({ plan }: { plan: SalaryPlan }) {
               bottom={`쓸 수 있는 돈의 ${plan.ratios[CATEGORY_ORDER.indexOf(row.key)]}%`}
             />
           }
-          right={
-            // 행 탭과 Switch 탭이 둘 다 토글하지 않도록 Switch 쪽 클릭은 여기서 끊는다.
-            <span onClick={stopBubble} style={{ display: "flex" }}>
-              <Switch checked={row.checked} onChange={() => toggle(row.key)} aria-label={`${row.label} 이체 완료`} />
-            </span>
-          }
+          right={<Switch checked={row.checked} onChange={() => toggle(row.key)} aria-label={`${row.label} 이체 완료`} />}
         />
       ))}
     </Card>

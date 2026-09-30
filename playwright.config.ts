@@ -23,7 +23,16 @@ export default defineConfig({
     viewport: { width: 390, height: 844 },
   },
   projects: [
-    { name: "chromium", use: { ...devices["Desktop Chrome"], viewport: { width: 390, height: 844 } } },
+    {
+      name: "chromium",
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 390, height: 844 },
+        // 설치된 playwright와 다른 판본의 chromium만 있는 환경(예: 클라우드 컨테이너 /opt/pw-browsers/chromium)용.
+        // 변수가 없으면 playwright 기본 브라우저를 쓴다 — 데스크톱에는 영향이 없다.
+        launchOptions: process.env.PW_CHROMIUM_PATH ? { executablePath: process.env.PW_CHROMIUM_PATH } : {},
+      },
+    },
   ],
   webServer: {
     command: "npm run dev",

@@ -6,6 +6,7 @@ import { createId } from "@/lib/id";
 import { nowIso } from "@/lib/date";
 import { validateFixedCostInput } from "@/lib/fixedCostForm";
 import { logClick } from "@/lib/analytics";
+import { formatAmountRaw } from "@/lib/format";
 
 function success() {
   try {
@@ -60,6 +61,7 @@ export function FixedCostSheet({
         variant="box"
         label="항목 이름"
         labelOption="sustain"
+        aria-label="항목 이름"
         placeholder="예: 월세"
         value={name}
         onChange={(e) => {
@@ -75,12 +77,13 @@ export function FixedCostSheet({
         variant="box"
         label="금액"
         labelOption="sustain"
+        aria-label="금액"
         placeholder="예: 500,000"
         inputMode="numeric"
         enterKeyHint="done"
         value={amount}
         onChange={(e) => {
-          setAmount(e.target.value);
+          setAmount(formatAmountRaw(e.target.value));
           if (amountError) setAmountError(null);
         }}
         help={amountError ?? undefined}

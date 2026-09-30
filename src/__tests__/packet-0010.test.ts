@@ -20,7 +20,7 @@ mockRouter();
 //   - 월급 칸 label '월급', 월급날 칸 label '월급날'(둘 다 inputMode numeric). help = 에러 ?? 안내.
 //     월급 안내는 formatManwon(salary) → '300만 원', 월급날 안내는 '매달 25일처럼 날짜만 입력해요'.
 //   - data-testid="available-preview": '남는 돈 {n}원'. 월급이 유효하지 않거나 남는 돈이 0 이하면 '남는 돈 -원'(음수 금지).
-//   - 고정비 행: ListRow contents(top=이름, bottom='500,000원'), 빈 목록이면 안내 '월세·통신비처럼 매달 나가는 돈을 추가해보세요'.
+//   - 고정비 행: ListRow contents(top=이름, bottom='500,000원'), 빈 목록이면 안내 '월세·통신비처럼 매달 나가는 돈을 넣어 주세요'.
 //   - '고정비 추가' 버튼 → FixedCostSheet(role=dialog). 10개면 시트 대신 openToast('고정비는 최대 10개까지 추가할 수 있어요').
 //     추가가 끝나면 시트는 닫힌다.
 //   - 1차 CTA는 SubmitFooter '배분 결과 보기'. 월급이 빈 값이면 enabled이고 탭하면 '월급을 입력해주세요'(제출 안 함),
@@ -40,7 +40,7 @@ const SALARY_ERR_MAX = "1억 원 이하로 입력해주세요";
 const SALARY_ERR_FIXED = "고정비가 월급보다 많아요. 금액을 확인해주세요";
 const SALARY_ERR_NAN = "숫자만 입력해주세요";
 const PAYDAY_HELP = "매달 25일처럼 날짜만 입력해요";
-const EMPTY_FIXED_HINT = "월세·통신비처럼 매달 나가는 돈을 추가해보세요";
+const EMPTY_FIXED_HINT = "월세·통신비처럼 매달 나가는 돈을 넣어 주세요";
 const MAX_TOAST = "고정비는 최대 10개까지 추가할 수 있어요";
 const CTA = "배분 결과 보기";
 
@@ -279,12 +279,12 @@ describe("계획 짜기 화면 (/plan)", () => {
     expect(isValidDraft(draft)).toBe(true);
   });
 
-  it("AC-5[P0]: 저장된 계획이 없으면 월급날 '25', 프리셋 5:3:2, 빈 고정비 안내가 보이고 월급 칸은 비어 있다", () => {
+  it("AC-5[P0]: 저장된 계획이 없으면 월급날 '25', 프리셋 기본 5:3:1:1, 빈 고정비 안내가 보이고 월급 칸은 비어 있다", () => {
     renderPlan();
 
     expect(salaryInput().value).toBe("");
     expect(paydayInput().value).toBe("25");
-    expect(screen.getByRole("button", { name: "5:3:2 기본", pressed: true })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "기본 5:3:1:1", pressed: true })).toBeInTheDocument();
     expect(screen.getByText(EMPTY_FIXED_HINT)).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).toBeNull();
   });
@@ -292,7 +292,7 @@ describe("계획 짜기 화면 (/plan)", () => {
   it("AC-5[P1]: 프리셋은 저장된 presetId가 아니라 비율로 복원한다(resolvePresetId)", () => {
     seed({ ...planA, presetId: "custom", ratios: [40, 40, 10, 10] });
     const { unmount } = renderPlan();
-    expect(screen.getByRole("button", { name: "4:4:2 저축 집중", pressed: true })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "저축 집중 4:4:1:1", pressed: true })).toBeInTheDocument();
     fireEvent.click(cta());
     expect(submittedDraft().presetId).toBe("p442");
     unmount();

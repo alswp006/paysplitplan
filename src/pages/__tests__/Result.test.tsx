@@ -56,13 +56,19 @@ describe("Result 레이아웃", () => {
     expect(within(locked).getByTestId("trend-block")).toBeInTheDocument();
   });
 
-  it("공유 버튼은 result_share 로그와 shareApp을 1회씩 부른다", () => {
+  it("공유 버튼('비율 공유하기')은 result_share 로그와 shareApp을 1회씩 부르고, 금액 없이 비율과 intoss 경로만 넘긴다", () => {
     savePlan(EXAMPLE_A);
     renderWithRouter(<Result />);
 
-    fireEvent.click(screen.getByRole("button", { name: "친구에게 공유하기" }));
+    fireEvent.click(screen.getByRole("button", { name: "비율 공유하기" }));
     expect(mockLogClick).toHaveBeenCalledWith("result_share");
     expect(mockShareApp).toHaveBeenCalledTimes(1);
+    expect(mockShareApp).toHaveBeenCalledWith({
+      message: "월급쪼개기로 이렇게 나눠요\n생활비 50 · 저축 30 · 비상금 10 · 여가 10\n내 월급으로 계산해 보기",
+      path: "intoss://paysplitplan/plan?r=50-30-10-10",
+    });
+    const [{ message }] = mockShareApp.mock.calls[0] as unknown as [{ message: string }];
+    expect(message).not.toMatch(/\d{1,3}(,\d{3})+원|만 원/);
   });
 
   it("계획이 없으면 빈 상태와 '월급 계획 짜기'를 보이고 결과 층은 없다", () => {

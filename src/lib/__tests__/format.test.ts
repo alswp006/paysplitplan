@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseAmountInput, formatManwon, formatWon, formatMonthLabel, formatAmount } from "@/lib/format";
+import { parseAmountInput, formatAmountRaw, formatManwon, formatWon, formatMonthLabel, formatAmount } from "@/lib/format";
 import { formatDate } from "@/lib/date";
 import { generateId, createId } from "@/lib/id";
 
@@ -21,6 +21,21 @@ describe("format", () => {
 
   it("parseAmountInput: 비문자열 입력에도 던지지 않는다", () => {
     expect(() => parseAmountInput(undefined as unknown as string)).not.toThrow();
+  });
+
+  it("formatManwon: 1억 이상은 억 단위로 끊는다('10,000만 원' 금지)", () => {
+    expect(formatManwon(100_000_000)).toBe("1억 원");
+    expect(formatManwon(123_450_000)).toBe("1억 2,345만 원");
+    expect(formatManwon(99_990_000)).toBe("9,999만 원");
+    expect(formatManwon(100_009_999)).toBe("1억 원");
+  });
+
+  it("formatAmountRaw: 해석되는 금액에만 콤마, 나머지는 원문 그대로", () => {
+    expect(formatAmountRaw("550000")).toBe("550,000");
+    expect(formatAmountRaw("550,0000")).toBe("5,500,000");
+    expect(formatAmountRaw("")).toBe("");
+    expect(formatAmountRaw("1.5")).toBe("1.5");
+    expect(formatAmountRaw("abc")).toBe("abc");
   });
 
   it("formatManwon / formatWon", () => {

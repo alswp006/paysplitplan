@@ -50,6 +50,18 @@ describe("FixedCostSheet", () => {
     expect(generateHapticFeedback).toHaveBeenCalledWith({ type: "success" });
   });
 
+  it("입력칸의 접근성 이름은 placeholder가 아니라 라벨('항목 이름'·'금액')이다", () => {
+    setup();
+    expect(screen.getAllByRole("textbox", { name: "항목 이름" })).toHaveLength(1);
+    expect(screen.getAllByRole("textbox", { name: "금액" })).toHaveLength(1);
+  });
+
+  it("금액 칸은 입력하는 대로 콤마를 붙인다(550000 → '550,000')", () => {
+    setup();
+    fireEvent.change(screen.getByRole("textbox", { name: "금액" }), { target: { value: "550000" } });
+    expect((screen.getByRole("textbox", { name: "금액" }) as HTMLInputElement).value).toBe("550,000");
+  });
+
   it("시트가 닫히면 입력을 초기화한다", () => {
     const { rerender } = setup();
     fill("월세", "500000");

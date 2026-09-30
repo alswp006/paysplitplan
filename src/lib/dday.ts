@@ -11,8 +11,8 @@ export interface NextPayday {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** 그 달의 payday. 말일보다 크면 말일로 당긴다 */
-function paydayOfMonth(year: number, month: number, payday: number): Date {
+/** 그 달의 payday(로컬 자정). 말일보다 크면 말일로 당긴다. month는 0부터(Date#getMonth). */
+export function paydayOfMonth(year: number, month: number, payday: number): Date {
   const lastDay = new Date(year, month + 1, 0).getDate();
   return new Date(year, month, Math.min(payday, lastDay));
 }

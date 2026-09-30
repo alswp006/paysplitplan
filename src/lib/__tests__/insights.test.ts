@@ -22,6 +22,23 @@ describe("getBracketScenarios", () => {
     expect(rows[2]).toMatchObject({ annualSaving: 8640000, isCurrent: true });
   });
 
+  it("입력 상한(1억)을 넘는 구간과, 내 월급이 아닌데 저축이 0원인 구간은 뺀다", () => {
+    // 월급 1억 · 고정비 99,999,999 → 남는 돈 1원: 위 두 구간은 1억 초과, 아래 두 구간은 고정비 이하
+    const extreme = getBracketScenarios({ salary: 100_000_000, fixedCosts: cost(99_999_999), ratios: [50, 30, 10, 10] });
+    expect(extreme.map((r) => r.salary)).toEqual([100_000_000]);
+    expect(extreme[0]).toMatchObject({ isCurrent: true, saving: 0 });
+
+    // 월급 9,970만 원 → +50만·+100만 구간은 1억 초과라 빠진다(1억 정확히는 입력 가능하니 남는다)
+    const nearMax = getBracketScenarios({ salary: 99_700_000, fixedCosts: cost(600_000), ratios: [50, 30, 10, 10] });
+    expect(nearMax.map((r) => r.salary)).toEqual([98_700_000, 99_200_000, 99_700_000]);
+    const atMax = getBracketScenarios({ salary: 99_000_000, fixedCosts: cost(600_000), ratios: [50, 30, 10, 10] });
+    expect(atMax.map((r) => r.salary)).toEqual([98_000_000, 98_500_000, 99_000_000, 99_500_000, 100_000_000]);
+
+    // 저축 비율 0%면 비교할 구간이 없다 — 내 월급 행만 남는다
+    const noSaving = getBracketScenarios({ salary: 3_000_000, fixedCosts: cost(600_000), ratios: [80, 0, 10, 10] });
+    expect(noSaving.map((r) => r.isCurrent)).toEqual([true]);
+  });
+
   it("고정비 이하·0 이하 구간은 뺀다", () => {
     const rows = getBracketScenarios({ salary: 1000000, fixedCosts: cost(600000), ratios: [50, 30, 10, 10] });
     expect(rows.map((r) => r.salary)).toEqual([1000000, 1500000, 2000000]);

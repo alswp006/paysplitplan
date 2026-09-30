@@ -1,4 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
+// 토스 WebView 밖(일반 브라우저)에서만 나는 알려진 dev 에러 목록 — walk 스펙과 공유한다.
+import { IGNORED_CONSOLE } from "./console-allowlist";
 
 /**
  * 제네릭 구조 스모크 — 이 앱 지식 없이도 jsdom이 못 보는 렌더 버그를 잡는다:
@@ -40,8 +42,6 @@ async function seed(page: Page): Promise<void> {
   });
 }
 
-// 토스 WebView 밖(일반 브라우저)에서만 나는 알려진 dev 에러 — 무시(실기기 WebView엔 안 남)
-const IGNORED_CONSOLE = [/SafeAreaInsets/i, /getSafeAreaInsets/i];
 
 for (const route of ROUTES) {
   test(`visual smoke: ${route.name} (${route.path})`, async ({ page }) => {

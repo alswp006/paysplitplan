@@ -5,9 +5,9 @@ import { generateHapticFeedback } from "@apps-in-toss/web-framework";
 import type { PlanDraft } from "@/lib/types";
 import { SubmitFooter } from "@/components/BottomCTA";
 import { isSamePlan } from "@/lib/plan";
-import { loadPlan, savePlan } from "@/lib/storage";
+import { loadPlan, peekPlan, savePlan } from "@/lib/storage";
 import { logClick } from "@/lib/analytics";
-import { requestReviewOnce } from "@/lib/review";
+import { resyncCurrentMonth } from "@/lib/recordToggle";
 
 function tickConfirm() {
   try {
@@ -34,8 +34,13 @@ export function ResultSaveFooter({
   const doSave = () => {
     const result = savePlan(draft);
     if (result.ok) {
-      toast.openToast("계획을 저장했어요", { higherThanCTA: true });
-      requestReviewOnce();
+      logClick("plan_save");
+      // 이번 달 체크는 그대로 두고 금액·이행률만 새 계획으로 다시 센다(홈·기록이 같은 숫자를 보게).
+      // 실패해도 계획 저장은 이미 끝났다 — 토스트를 띄우지 않는다.
+      const savedPlan = peekPlan();
+      if (savedPlan) resyncCurrentMonth(savedPlan);
+      // 짧게 — 홈으로 넘어가 탭 바를 덮지 않게. 리뷰 요청은 첫 이체 체크 100% 순간에만 한다(ChecklistCard).
+      toast.openToast("계획을 저장했어요", { higherThanCTA: true, duration: 2000 });
       setSaved(true);
     } else {
       toast.openToast("저장 공간이 부족해 저장하지 못했어요", { higherThanCTA: true });
@@ -55,9 +60,9 @@ export function ResultSaveFooter({
       if (existing && !isSamePlan(draft, existing)) {
         const ok = await dialog.openConfirm({
           title: "저장된 계획을 바꿀까요?",
-          description: "지금 계획으로 바뀌고, 이전 계획은 되돌릴 수 없어요. 이체 체크 기록은 그대로 남아요.",
+          description: "지금 계획으로 바뀌어요. 지난 기록은 그대로 두고, 이번 달 체크만 새 금액으로 다시 세요.",
           confirmButton: "바꾸기",
-          cancelButton: "취소",
+          cancelButton: "닫기",
         });
         if (!ok) return;
         tickConfirm();

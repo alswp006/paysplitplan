@@ -1,4 +1,8 @@
 import { describe, it, expect } from "vitest";
+import { fireEvent, screen } from "@testing-library/react";
+import { mockAll, mockLocation } from "@/__tests__/__helpers__/mocks";
+import { renderWithRouter } from "@/__tests__/__helpers__/test-utils";
+import Plan from "@/pages/Plan";
 import {
   buildDraft,
   formatAvailablePreview,
@@ -7,6 +11,8 @@ import {
 } from "@/lib/planForm";
 import { isValidDraft } from "@/lib/validate";
 import type { FixedCost, Ratios } from "@/lib/types";
+
+mockAll();
 
 const TS = "2026-09-01T00:00:00.000Z";
 const rent: FixedCost = { id: "fc_rent", name: "월세", amount: 500_000, createdAt: TS, updatedAt: TS };
@@ -39,5 +45,25 @@ describe("planForm", () => {
     expect(Object.keys(draft!).sort()).toEqual(["fixedCosts", "payday", "presetId", "ratios", "salary"]);
     expect(buildDraft({ salaryRaw: "", paydayRaw: "25", fixedCosts: [], ratios, presetId: "p532" })).toBeNull();
     expect(buildDraft({ salaryRaw: "3000000", paydayRaw: "32", fixedCosts: [], ratios, presetId: "p532" })).toBeNull();
+  });
+});
+
+describe("Plan 화면 — 입력칸 접근성과 하단 안내", () => {
+  it("월급·월급날 칸의 접근성 이름은 placeholder가 아니라 라벨이다", () => {
+    mockLocation.state = null;
+    renderWithRouter(<Plan />);
+    expect(screen.getAllByRole("textbox", { name: "월급" })).toHaveLength(1);
+    expect(screen.getAllByRole("textbox", { name: "월급날" })).toHaveLength(1);
+    // 기존 라벨 연결도 그대로다
+    expect(screen.getByLabelText("월급")).toBe(screen.getByRole("textbox", { name: "월급" }));
+  });
+
+  it("비율 합계가 100이 아니면 칸 아래에는 자세한 문구, 하단 안내는 다음 행동 한 줄(같은 문구 중복 없음)", () => {
+    renderWithRouter(<Plan />);
+    fireEvent.change(screen.getByRole("textbox", { name: "월급" }), { target: { value: "3000000" } });
+    fireEvent.click(screen.getByRole("button", { name: "여가 5% 줄이기" }));
+    expect(screen.getAllByText("비율 합계를 100%로 맞춰주세요 (현재 95%)")).toHaveLength(1);
+    expect(screen.getByText("비율 합계가 100%가 되면 결과를 볼 수 있어요")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "배분 결과 보기" })).toBeDisabled();
   });
 });

@@ -5,8 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host",
-    "build": "vite build",
-    "postbuild": "node scripts/verify-no-dev-leak.mjs dist",
+    "build": "vite build && node scripts/verify-no-dev-leak.mjs dist",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

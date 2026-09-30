@@ -1,5 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { listPlans, loadPlan, loadRecords, loadReview, saveRecord, savePlan, saveReview, PLAN_KEY, RECORDS_KEY, REVIEW_KEY } from "@/lib/storage";
+import {
+  listPlans,
+  loadPlan,
+  loadRecords,
+  loadReview,
+  peekPlan,
+  pruneMonths,
+  saveRecord,
+  savePlan,
+  saveReview,
+  writeMonthRecord,
+  PLAN_BACKUP_KEY,
+  PLAN_KEY,
+  RECORDS_BACKUP_KEY,
+  RECORDS_KEY,
+  REVIEW_KEY,
+} from "@/lib/storage";
 import type { MonthRecord, PlanDraft, SalaryPlan } from "@/lib/types";
 
 const TS = "2026-09-01T00:00:00.000Z";
@@ -199,5 +215,107 @@ describe("listPlans", () => {
     expect(listPlans()).toEqual([]);
     localStorage.setItem(PLAN_KEY, JSON.stringify(planA));
     expect(listPlans()).toEqual([{ id: "plan_a", name: "월급 300만 원", createdAt: TS }]);
+  });
+});
+
+describe("데이터를 잃지 않게 — 백업·읽기 전용·원문 보존", () => {
+  it("loadPlan('{broken') → 키는 지우되(null) 원문을 paysplit:plan:v1:bak에 먼저 복사한다", () => {
+    localStorage.setItem(PLAN_KEY, "{broken");
+    expect(loadPlan()).toBeNull();
+    expect(localStorage.getItem(PLAN_KEY)).toBeNull();
+    expect(PLAN_BACKUP_KEY).toBe("paysplit:plan:v1:bak");
+    expect(localStorage.getItem(PLAN_BACKUP_KEY)).toBe("{broken");
+  });
+
+  it("loadPlan: 백업 쓰기가 실패하면 원문을 지우지 않는다", () => {
+    localStorage.setItem(PLAN_KEY, "{broken");
+    const set = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("full", "QuotaExceededError");
+    });
+    expect(loadPlan()).toBeNull();
+    set.mockRestore();
+    expect(localStorage.getItem(PLAN_KEY)).toBe("{broken");
+  });
+
+  it("peekPlan은 깨진 원문을 그대로 두고 setItem·removeItem을 한 번도 부르지 않는다", () => {
+    localStorage.setItem(PLAN_KEY, "{broken");
+    const set = vi.spyOn(Storage.prototype, "setItem");
+    const remove = vi.spyOn(Storage.prototype, "removeItem");
+    expect(peekPlan()).toBeNull();
+    expect(set).not.toHaveBeenCalled();
+    expect(remove).not.toHaveBeenCalled();
+    expect(localStorage.getItem(PLAN_KEY)).toBe("{broken");
+    set.mockRestore();
+    remove.mockRestore();
+    localStorage.setItem(PLAN_KEY, JSON.stringify(planA));
+    expect(peekPlan()).toEqual(planA);
+  });
+
+  it("savePlan: 검증에 실패한 원문 위에 쓰기 전에 :bak에 복사한다", () => {
+    localStorage.setItem(PLAN_KEY, '{"version":1,"salary":"x"}');
+    expect(savePlan(draft)).toEqual({ ok: true });
+    expect(localStorage.getItem(PLAN_BACKUP_KEY)).toBe('{"version":1,"salary":"x"}');
+    expect(loadPlan()?.salary).toBe(3_500_000);
+  });
+
+  it("writeMonthRecord: 8월 원문이 rate:'50'(무효)이어도 9월을 쓴 뒤 8월 원문이 문자 그대로 남는다", () => {
+    const aug = { ...record, id: "rec-aug", month: "2026-08", rate: "50" };
+    localStorage.setItem(RECORDS_KEY, JSON.stringify({ version: 1, records: { "2026-08": aug } }));
+    expect(writeMonthRecord(record as MonthRecord)).toEqual({ ok: true });
+    const raw = JSON.parse(localStorage.getItem(RECORDS_KEY)!);
+    expect(raw.records["2026-08"]).toEqual(aug);
+    expect(raw.records["2026-09"]).toEqual(record);
+    // 읽기는 여전히 무효 레코드를 걸러 낸다
+    expect(Object.keys(loadRecords().records)).toEqual(["2026-09"]);
+    // 대상 달이 아니니 백업은 필요 없다
+    expect(localStorage.getItem(RECORDS_BACKUP_KEY)).toBeNull();
+  });
+
+  it("writeMonthRecord: 원문이 '{x'(파싱 불가)여도 쓰기는 성공하고 원문은 :bak에 남는다", () => {
+    localStorage.setItem(RECORDS_KEY, "{x");
+    expect(writeMonthRecord(record as MonthRecord)).toEqual({ ok: true });
+    expect(RECORDS_BACKUP_KEY).toBe("paysplit:records:v1:bak");
+    expect(localStorage.getItem(RECORDS_BACKUP_KEY)).toBe("{x");
+    expect(loadRecords().records["2026-09"]).toEqual(record);
+  });
+
+  it("writeMonthRecord: 대상 달의 원문이 무효면 원문 전체를 :bak에 복사한 뒤 덮어쓴다", () => {
+    const broken = JSON.stringify({ version: 1, records: { "2026-09": { month: "2026-09", rate: "x" } } });
+    localStorage.setItem(RECORDS_KEY, broken);
+    expect(writeMonthRecord(record as MonthRecord)).toEqual({ ok: true });
+    expect(localStorage.getItem(RECORDS_BACKUP_KEY)).toBe(broken);
+    expect(loadRecords().records["2026-09"]).toEqual(record);
+  });
+
+  it("writeMonthRecord: 백업이 필요한데 쓰기가 막히면 QUOTA이고 원문은 그대로다", () => {
+    localStorage.setItem(RECORDS_KEY, "{x");
+    const set = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("full", "QuotaExceededError");
+    });
+    expect(writeMonthRecord(record as MonthRecord)).toEqual({ ok: false, error: "QUOTA" });
+    set.mockRestore();
+    expect(localStorage.getItem(RECORDS_KEY)).toBe("{x");
+  });
+
+  it("달 키 26개 + 비월 키 1개면 최신 24개와 비월 키가 남는다", () => {
+    const records: Record<string, unknown> = { note: "keep-me" };
+    for (let i = 0; i < 26; i++) {
+      const month = `${2024 + Math.floor(i / 12)}-${String((i % 12) + 1).padStart(2, "0")}`;
+      records[month] = { ...record, id: `r${i}`, month };
+    }
+    localStorage.setItem(RECORDS_KEY, JSON.stringify({ version: 1, records }));
+    expect(writeMonthRecord({ ...record, month: "2026-02", id: "r25" } as MonthRecord)).toEqual({ ok: true });
+    const raw = JSON.parse(localStorage.getItem(RECORDS_KEY)!);
+    const months = Object.keys(raw.records).filter((k) => /^\d{4}-\d{2}$/.test(k)).sort();
+    expect(months).toHaveLength(24);
+    expect(months[0]).toBe("2024-03");
+    expect(months[23]).toBe("2026-02");
+    expect(raw.records.note).toBe("keep-me");
+  });
+
+  it("pruneMonths는 지운 달을 [달, 원문]으로 돌려주고 달 형식이 아닌 키는 건드리지 않는다", () => {
+    const records: Record<string, unknown> = { "2026-01": 1, "2026-02": 2, "2026-03": 3, extra: "x", "2026-13": "bad" };
+    expect(pruneMonths(records, 2)).toEqual([["2026-01", 1]]);
+    expect(records).toEqual({ "2026-02": 2, "2026-03": 3, extra: "x", "2026-13": "bad" });
   });
 });

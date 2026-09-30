@@ -1,171 +1,206 @@
-import { useState, useEffect, useRef } from "react";
-import {
-  loadFullScreenAd,
-  showFullScreenAd,
-} from "@apps-in-toss/web-framework";
-import "@/styles/reward-ad.css";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Button, Paragraph } from "@toss/tds-mobile";
+import { loadFullScreenAd, showFullScreenAd } from "@apps-in-toss/web-framework";
 
 interface TossRewardAdProps {
-  /** 광고 슬롯 ID (앱인토스 콘솔에서 발급) */
-  slotId: string;
-  /** 광고 시청 완료 후 보여줄 콘텐츠 */
-  children: React.ReactNode;
-  /** 광고 시청 전 표시할 안내 문구 */
+  /** 보상형 광고 그룹 ID(adGroupId) — 앱인토스 콘솔 발급값. 비어 있으면 게이트는 그냥 열린다. */
+  adGroupId: string;
+  /** 광고를 끝까지 본 뒤 보여줄 콘텐츠 */
+  children: ReactNode;
+  /** 광고를 보기 전에 보여줄 안내 문구 */
   description?: string;
-  /** 광고 버튼 텍스트 */
+  /** 광고가 준비됐을 때의 버튼 문구 */
   buttonText?: string;
-  /** 광고 시청 완료 콜백 */
+  /** 보상을 받았을 때만 불린다(`userEarnedReward`). 광고를 띄울 수 없어 게이트가 열린 경우에는 부르지 않는다. */
   onRewarded?: () => void;
-  /** 광고 로드 타임아웃 (ms). 초과 시 자동 언락 */
+  /** 로드·재생 시작을 기다리는 시간(ms). 넘기면 게이트를 연다. */
   timeoutMs?: number;
 }
 
+type Status = "loading" | "ready" | "showing" | "open";
+
+const RETRY_DESCRIPTION = "광고를 끝까지 봐야 열려요. 다시 볼 수 있어요";
+
+/** WebView 밖에서 isSupported는 false를 돌려주는 대신 throw한다 — 둘 다 "지원 안 함"으로 본다. */
+function adsSupported(): boolean {
+  try {
+    return loadFullScreenAd.isSupported() === true && showFullScreenAd.isSupported() === true;
+  } catch {
+    return false;
+  }
+}
+
+function safeCall(fn: (() => void) | null): void {
+  try {
+    fn?.();
+  } catch {
+    /* 구독 해제 실패는 무시한다 */
+  }
+}
+
 /**
- * 보상형 광고 게이트 컴포넌트.
- * 광고 시청 완료 전까지 children을 숨기고, 시청 후 노출합니다.
- * 광고 로드 실패 / 타임아웃 / 슬롯 ID 미설정 / 앱인토스 외 환경(개발 브라우저 등) → 자동 언락.
- * **fail-open이 계약이다** — 광고를 띄울 수 없으면 게이트는 열린다. 그러니 핵심 답(무료 층)은
- * 이 컴포넌트 **바깥**에 두고, 안에는 더 깊은 층만 넣어라.
+ * 보상형 광고 게이트. 광고를 끝까지 봐서 `userEarnedReward`가 오면 children을 연다.
  *
- * SDK는 loadFullScreenAd + showFullScreenAd를 imperative API로 제공하므로
- * 이 컴포넌트가 React 래핑 레이어 역할을 합니다.
+ * **fail-open이 계약이다** — 광고를 띄울 수 없으면(ID 없음·미지원 환경·로드 실패·타임아웃·재생 실패)
+ * 게이트는 열린다. 그러니 핵심 답(무료 층)은 이 컴포넌트 **바깥**에 두고, 안에는 더 깊은 층만 넣는다.
+ * 사용자가 보상 없이 광고를 닫으면(`dismissed`) 잠금은 유지하고 다시 볼 수 있게 한다.
  *
- * ```tsx
- * // 무료 층(핵심 답) — 게이트 바깥
- * <CoreAnswer data={result} />
- * // 잠금 층(더 깊은 층) — 게이트 안
- * <TossRewardAd slotId={import.meta.env.VITE_TOSS_AD_SLOT_ID}>
- *   <DeepDiveSection data={result} />
- * </TossRewardAd>
- * ```
+ * SDK 모양(web-framework 3.6.0 .d.ts): `loadFullScreenAd` / `showFullScreenAd`는
+ * `{ options: { adGroupId }, onEvent, onError }`를 받고 구독 해제 함수를 돌려준다.
+ * 모든 SDK 호출은 try/catch 안에 있다 — 여기서 던지면 화면 전체가 흰 화면이 된다.
  */
 export function TossRewardAd({
-  slotId,
+  adGroupId,
   children,
-  description = "광고를 시청하면 결과를 확인할 수 있어요",
+  description = "광고를 보면 결과를 확인할 수 있어요",
   buttonText = "광고 보고 확인하기",
   onRewarded,
   timeoutMs = 15000,
 }: TossRewardAdProps) {
-  const [unlocked, setUnlocked] = useState(false);
-  const [isShowing, setIsShowing] = useState(false);
-  const [adLoaded, setAdLoaded] = useState(false);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const loadTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // setState 업데이터는 순수해야 한다(StrictMode가 두 번 부른다) — 로드 여부는 ref로 읽는다.
-  const adLoadedRef = useRef(false);
+  const [status, setStatus] = useState<Status>(() => (!adGroupId || !adsSupported() ? "open" : "loading"));
+  const [retry, setRetry] = useState(false);
 
-  // Load the ad on mount
-  useEffect(() => {
-    // ── fail-open #1: 슬롯 ID가 없으면 SDK를 부르지 않고 연다 ──
-    // 슬롯 ID는 앱인토스 콘솔 발급값이라 **지금 배포되는 앱에는 없다**(.env.example의
-    // VITE_TOSS_AD_SLOT_ID는 빈 값). 그때 SDK를 부르면 onError도 throw도 안 나는 환경에서
-    // unlocked=false·adLoaded=false로 굳어 "광고 준비 중..." 비활성 버튼만 영구히 남는다 —
-    // 게이트가 fail-CLOSED가 되어 잠금 층이 아무에게도 안 보인다.
-    // rules/toss-mini-app.md의 `if (!slotId) return;`과 같은 가드다.
-    if (!slotId) {
-      setUnlocked(true);
-      onRewarded?.();
-      return;
-    }
+  const mountedRef = useRef(false);
+  const doneRef = useRef(false);
+  const unsubLoadRef = useRef<(() => void) | null>(null);
+  const unsubShowRef = useRef<(() => void) | null>(null);
+  const loadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onRewardedRef = useRef(onRewarded);
+  onRewardedRef.current = onRewarded;
 
-    // ── fail-open #2: 로드 콜백이 영영 안 오면 연다 ──
-    // onEvent/onError/throw 중 아무것도 오지 않는 환경(토스 호스트 밖의 vite preview 등)에서
-    // 마운트 타임아웃이 없으면 버튼이 영원히 disabled다. 광고를 **띄울 수 없었던** 것이지
-    // 사용자가 안 본 것이 아니므로 콘텐츠를 인질로 잡지 않는다.
-    adLoadedRef.current = false;
-    loadTimeoutRef.current = setTimeout(() => {
-      if (adLoadedRef.current) return;
-      setUnlocked(true);
-      onRewarded?.();
-    }, timeoutMs);
+  const clearLoadTimer = () => {
+    if (loadTimerRef.current) clearTimeout(loadTimerRef.current);
+    loadTimerRef.current = null;
+  };
+  const clearShowTimer = () => {
+    if (showTimerRef.current) clearTimeout(showTimerRef.current);
+    showTimerRef.current = null;
+  };
 
+  /** 광고를 띄울 수 없었다 — 사용자가 안 본 게 아니므로 콘텐츠를 인질로 잡지 않는다. onRewarded는 부르지 않는다. */
+  const failOpen = () => {
+    if (!mountedRef.current || doneRef.current) return;
+    doneRef.current = true;
+    clearLoadTimer();
+    clearShowTimer();
+    setStatus("open");
+  };
+
+  const reward = () => {
+    if (!mountedRef.current || doneRef.current) return;
+    doneRef.current = true;
+    clearLoadTimer();
+    clearShowTimer();
+    setStatus("open");
+    onRewardedRef.current?.();
+  };
+
+  const startLoad = () => {
+    if (!mountedRef.current || doneRef.current) return;
+    safeCall(unsubLoadRef.current);
+    unsubLoadRef.current = null;
+    clearLoadTimer();
+    setStatus("loading");
+    loadTimerRef.current = setTimeout(failOpen, timeoutMs);
     try {
-      loadFullScreenAd({
-        slotId,
-        onEvent: () => {
-          adLoadedRef.current = true;
-          if (loadTimeoutRef.current) clearTimeout(loadTimeoutRef.current);
-          setAdLoaded(true);
+      const unsubscribe = loadFullScreenAd({
+        options: { adGroupId },
+        onEvent: (event) => {
+          if (event.type !== "loaded" || !mountedRef.current || doneRef.current) return;
+          clearLoadTimer();
+          setStatus("ready");
         },
-        onError: () => {
-          // Load failed (e.g., local browser) — auto-unlock
-          if (loadTimeoutRef.current) clearTimeout(loadTimeoutRef.current);
-          setUnlocked(true);
-          onRewarded?.();
-        },
-      } as Parameters<typeof loadFullScreenAd>[0]);
+        onError: () => failOpen(),
+      });
+      unsubLoadRef.current = typeof unsubscribe === "function" ? unsubscribe : null;
     } catch {
-      // SDK not available (e.g., jsdom) — auto-unlock
-      if (loadTimeoutRef.current) clearTimeout(loadTimeoutRef.current);
-      setUnlocked(true);
-      onRewarded?.();
+      failOpen();
     }
+  };
 
+  useEffect(() => {
+    mountedRef.current = true;
+    doneRef.current = false;
+    if (!adGroupId || !adsSupported()) {
+      doneRef.current = true;
+      setStatus("open");
+    } else {
+      startLoad();
+    }
     return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      if (loadTimeoutRef.current) clearTimeout(loadTimeoutRef.current);
+      mountedRef.current = false;
+      clearLoadTimer();
+      clearShowTimer();
+      safeCall(unsubLoadRef.current);
+      safeCall(unsubShowRef.current);
+      unsubLoadRef.current = null;
+      unsubShowRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slotId]);
+  }, [adGroupId]);
 
-  if (unlocked) {
+  if (status === "open") {
     return <>{children}</>;
   }
 
   const handleWatch = () => {
-    setIsShowing(true);
-
-    // Timeout fallback
-    timeoutRef.current = setTimeout(() => {
-      setUnlocked(true);
-      onRewarded?.();
-    }, timeoutMs);
-
+    if (status !== "ready" || doneRef.current) return;
+    setStatus("showing");
+    safeCall(unsubShowRef.current);
+    unsubShowRef.current = null;
+    clearShowTimer();
+    // 재생이 시작조차 안 되면 연다. 첫 이벤트가 오면 해제한다 — 30초짜리 영상 도중에 열리지 않게.
+    showTimerRef.current = setTimeout(failOpen, timeoutMs);
     try {
-      showFullScreenAd({
-        slotId,
-        onEvent: (event: { type?: string }) => {
-          if (timeoutRef.current) clearTimeout(timeoutRef.current);
-          // event.type === 'rewarded' indicates completion (SDK version-dependent)
-          // For safety, unlock on any event that finishes the ad
-          setUnlocked(true);
-          setIsShowing(false);
-          if (event?.type === "rewarded" || event?.type === "completed") {
-            onRewarded?.();
-          } else {
-            // dismissed or other — still unlock for UX (policy: gate only final payoff)
-            onRewarded?.();
+      const unsubscribe = showFullScreenAd({
+        options: { adGroupId },
+        onEvent: (event) => {
+          clearShowTimer();
+          switch (event.type) {
+            case "userEarnedReward":
+              reward();
+              break;
+            case "dismissed":
+              // 보상 없이 닫았다 — 잠금을 유지하고 다음 광고를 다시 불러온다.
+              if (!doneRef.current && mountedRef.current) {
+                setRetry(true);
+                startLoad();
+              }
+              break;
+            case "failedToShow":
+              failOpen();
+              break;
+            default:
+              // requested · show · impression · clicked — 진행 신호일 뿐 상태를 바꾸지 않는다.
+              break;
           }
         },
-        onError: () => {
-          if (timeoutRef.current) clearTimeout(timeoutRef.current);
-          // Playback failed — unlock as fallback
-          setUnlocked(true);
-          setIsShowing(false);
-          onRewarded?.();
-        },
-      } as Parameters<typeof showFullScreenAd>[0]);
+        onError: () => failOpen(),
+      });
+      unsubShowRef.current = typeof unsubscribe === "function" ? unsubscribe : null;
     } catch {
-      // SDK call threw — unlock
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      setUnlocked(true);
-      setIsShowing(false);
-      onRewarded?.();
+      failOpen();
     }
   };
 
+  const label =
+    status === "loading"
+      ? "광고를 준비하고 있어요"
+      : status === "showing"
+        ? "광고를 보여 주고 있어요"
+        : retry
+          ? "광고 다시 보기"
+          : buttonText;
+
   return (
-    <div className="reward-ad-gate">
-      <p className="reward-ad-description">{description}</p>
-      <button
-        className={`reward-ad-button${isShowing ? " reward-ad-button--loading" : ""}`}
-        onClick={handleWatch}
-        disabled={isShowing || !adLoaded}
-        aria-label={buttonText}
-      >
-        {isShowing ? "광고 재생 중..." : !adLoaded ? "광고 준비 중..." : buttonText}
-      </button>
+    <div data-testid="reward-gate" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <Paragraph.Text typography="t6" color="var(--adaptiveGrey600)">
+        {retry ? RETRY_DESCRIPTION : description}
+      </Paragraph.Text>
+      <Button variant="weak" size="large" display="block" disabled={status !== "ready"} onClick={handleWatch}>
+        {label}
+      </Button>
     </div>
   );
 }

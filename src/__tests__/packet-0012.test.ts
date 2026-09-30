@@ -24,7 +24,8 @@ mockRouter();
 // - 저장된 계획은 @/lib/storage의 loadPlan()으로 읽고, isSamePlan(draft, saved)=false면 savePlan 전에
 //   useDialog().openConfirm({ title: '저장된 계획을 바꿀까요?', confirmButton: '바꾸기', cancelButton: '닫기', ... })로 묻는다.
 //   (true를 돌려주면 '바꾸기', false면 '닫기'다.)
-// - 저장 성공: useToast().openToast('계획을 저장했어요') + requestReviewOnce() 1회.
+// - 저장 성공: useToast().openToast('계획을 저장했어요') + logClick('plan_save') 1회. 리뷰 요청은 여기서 하지 않는다
+//   (2026-09-30: 첫 이체 체크 100% 순간(ChecklistCard) 한 곳으로 옮겼다 — 저장 직후는 아직 가치를 본 순간이 아니다).
 // - savePlan이 {ok:false,error:'QUOTA'}면 openToast('저장 공간이 부족해 저장하지 못했어요'), 라벨 유지, 리뷰 0회.
 // - '바꾸기' 확정 시 logClick('plan_overwrite_confirm') 1회.
 
@@ -84,7 +85,7 @@ const saveButton = () => screen.getByRole("button", { name: "이 계획 저장�
 const toastMessages = () => mockOpenToast.mock.calls.map((c) => c[0]);
 
 describe("결과 저장 버튼 + 덮어쓰기 확인 (ResultSaveFooter)", () => {
-  it("AC-1[P0]: 저장된 계획이 없으면 Dialog 없이 저장하고 Toast·리뷰 1회, 라벨이 바뀌며 탭하면 navigate('/')", async () => {
+  it("AC-1[P0]: 저장된 계획이 없으면 Dialog 없이 저장하고 Toast·plan_save 1회(리뷰 0회), 라벨이 바뀌며 탭하면 navigate('/')", async () => {
     renderFooter(draftA);
 
     fireEvent.click(saveButton());
@@ -93,7 +94,8 @@ describe("결과 저장 버튼 + 덮어쓰기 확인 (ResultSaveFooter)", () => 
     expect(mockDialog.openConfirm).toHaveBeenCalledTimes(0);
     expect(savePlanSpy).toHaveBeenCalledTimes(1);
     expect(toastMessages()).toEqual(["계획을 저장했어요"]);
-    expect(requestReviewOnce).toHaveBeenCalledTimes(1);
+    expect(requestReviewOnce).toHaveBeenCalledTimes(0);
+    expect(logClick.mock.calls.filter((c) => c[0] === "plan_save")).toHaveLength(1);
     expect(logClick).not.toHaveBeenCalledWith("plan_overwrite_confirm");
     expect(screen.queryByRole("button", { name: "이 계획 저장하기" })).toBeNull();
     const saved = loadPlan();
@@ -138,15 +140,20 @@ describe("결과 저장 버튼 + 덮어쓰기 확인 (ResultSaveFooter)", () => 
     await waitFor(() => expect(screen.getByRole("button", { name: "홈에서 이체 체크하기" })).toBeTruthy());
     expect(mockDialog.openConfirm).toHaveBeenCalledTimes(1);
     expect(mockDialog.openConfirm).toHaveBeenCalledWith(
-      expect.objectContaining({ title: "저장된 계획을 바꿀까요?", confirmButton: "바꾸기", cancelButton: "취소" }),
+      expect.objectContaining({
+        title: "저장된 계획을 바꿀까요?",
+        description: "지금 계획으로 바뀌어요. 지난 기록은 그대로 두고, 이번 달 체크만 새 금액으로 다시 세요.",
+        confirmButton: "바꾸기",
+        cancelButton: "닫기",
+      }),
     );
     expect(savePlanCallsWhenAsked).toBe(0);
     expect(storedWhenAsked).toBe(before);
-    expect(logClick).toHaveBeenCalledTimes(1);
-    expect(logClick).toHaveBeenCalledWith("plan_overwrite_confirm");
+    // 확정 로그 → 저장 로그 순서로 1회씩
+    expect(logClick.mock.calls.map((c) => c[0])).toEqual(["plan_overwrite_confirm", "plan_save"]);
     expect(savePlanSpy).toHaveBeenCalledTimes(1);
     expect(toastMessages()).toEqual(["계획을 저장했어요"]);
-    expect(requestReviewOnce).toHaveBeenCalledTimes(1);
+    expect(requestReviewOnce).toHaveBeenCalledTimes(0);
     const saved = loadPlan();
     expect(saved?.salary).toBe(3_500_000);
     expect(saved?.id).toBe("plan_a");
@@ -168,6 +175,7 @@ describe("결과 저장 버튼 + 덮어쓰기 확인 (ResultSaveFooter)", () => 
     expect(toastMessages()).toEqual([]);
     expect(requestReviewOnce).toHaveBeenCalledTimes(0);
     expect(logClick).not.toHaveBeenCalledWith("plan_overwrite_confirm");
+    expect(logClick).not.toHaveBeenCalledWith("plan_save");
     expect(localStorage.getItem(PLAN_KEY)).toBe(before);
     expect(loadPlan()?.salary).toBe(3_000_000);
     expect(saveButton()).toBeTruthy();
@@ -188,7 +196,7 @@ describe("결과 저장 버튼 + 덮어쓰기 확인 (ResultSaveFooter)", () => 
     expect(mockDialog.openConfirm).toHaveBeenCalledTimes(0);
     expect(savePlanSpy).toHaveBeenCalledTimes(1);
     expect(toastMessages()).toEqual(["계획을 저장했어요"]);
-    expect(requestReviewOnce).toHaveBeenCalledTimes(1);
+    expect(requestReviewOnce).toHaveBeenCalledTimes(0);
     const saved = loadPlan();
     expect(saved?.id).toBe("plan_a");
     expect(saved?.createdAt).toBe(CREATED);
@@ -204,6 +212,7 @@ describe("결과 저장 버튼 + 덮어쓰기 확인 (ResultSaveFooter)", () => 
     expect(mockDialog.openConfirm).toHaveBeenCalledTimes(0);
     expect(savePlanSpy).toHaveBeenCalledTimes(1);
     expect(requestReviewOnce).toHaveBeenCalledTimes(0);
+    expect(logClick).not.toHaveBeenCalledWith("plan_save");
     expect(saveButton()).toBeTruthy();
     expect(screen.queryByRole("button", { name: "홈에서 이체 체크하기" })).toBeNull();
   });

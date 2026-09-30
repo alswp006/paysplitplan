@@ -26,9 +26,10 @@ mockRouter();
 //   isCompletionTransition(prevPercent: number, nextPercent: number): boolean   // prev < 100 && next === 100
 // src/components/home/ChecklistCard.tsx
 //   export function ChecklistCard({ plan }: { plan: SalaryPlan })
-//   - 행: ListRow data-testid="checklist-row" (onClick으로 행 전체 탭 = 토글), 오른쪽 Switch aria-label "{통장명} 이체 완료"
+//   - 행: ListRow data-testid="checklist-row", 오른쪽 Switch aria-label "{통장명} 이체 완료"
 //     예) "저축 통장 이체 완료". 행 안에 통장명과 금액("720,000원")이 보인다.
-//   - Switch 자체를 눌러도, 행을 눌러도 toggleRecordItem(key, !checked)은 정확히 1회 (버블링으로 2회 호출 금지)
+//   - 토글은 Switch 하나로만 한다 — Switch를 누르면 toggleRecordItem(key, !checked) 정확히 1회, 행 영역 탭은 0회
+//     (2026-09-30: 행 전체를 버튼으로 두면 버튼 안에 스위치가 들어가는 중첩 인터랙티브가 된다 — 접근성 결함 N5)
 //   - data-testid="progress-text"에 progressText
 
 const { logClick, requestReviewOnce, toggleSpy } = vi.hoisted(() => ({
@@ -51,8 +52,8 @@ vi.mock("@/lib/recordToggle", async (importOriginal) => {
 const CREATED = "2026-09-01T00:00:00.000Z";
 const SEPT = "2026-09-29T02:00:00.000Z";
 const OCT = "2026-10-01T12:00:00.000Z";
-const COMPLETE_TOAST = "이번 달 통장 쪼개기 완료!";
-const FAIL_TOAST = "저장하지 못했어요. 다시 시도해주세요";
+const COMPLETE_TOAST = "9월 이체를 모두 체크했어요";
+const FAIL_TOAST = "저장 공간이 부족해 체크하지 못했어요. 잠시 뒤 다시 눌러 주세요";
 
 const fixedRent = { id: "fc_rent", name: "월세", amount: 600_000, createdAt: CREATED, updatedAt: CREATED };
 
@@ -205,24 +206,24 @@ describe("홈 이체 체크리스트 카드 (ChecklistCard)", () => {
     expect(toasts()).toEqual([]);
   });
 
-  it("AC-1[P0]: 행 영역을 1회 탭해도, Switch를 직접 1회 눌러도 toggleRecordItem은 각각 정확히 1회다(버블링 중복 없음)", async () => {
+  it("AC-1[P0]: 행 영역 탭은 토글하지 않고(0회), Switch를 직접 1회 누르면 toggleRecordItem은 정확히 1회다", async () => {
     seed(planA);
     renderCard(planA);
 
     const savingRow = rows().find((r) => /저축 통장/.test(r.textContent ?? ""))!;
+    expect(savingRow.getAttribute("role")).not.toBe("button");
     fireEvent.click(savingRow);
+
+    expect(toggleSpy).toHaveBeenCalledTimes(0);
+    expect(progress()).toBe("0/4 완료 · 0%");
+    expect(sw("저축 통장").checked).toBe(false);
+
+    fireEvent.click(sw("저축 통장"));
 
     await waitFor(() => expect(progress()).toBe("1/4 완료 · 25%"));
     expect(toggleSpy).toHaveBeenCalledTimes(1);
     expect(toggleSpy).toHaveBeenCalledWith("saving", true);
     expect(sw("저축 통장").checked).toBe(true);
-
-    toggleSpy.mockClear();
-    fireEvent.click(sw("비상금 통장"));
-
-    await waitFor(() => expect(progress()).toBe("2/4 완료 · 50%"));
-    expect(toggleSpy).toHaveBeenCalledTimes(1);
-    expect(toggleSpy).toHaveBeenCalledWith("emergency", true);
   });
 
   it("AC-2[P0]: 4개를 모두 켜면 완료 Toast 1회 + requestReviewOnce, 이후 하나를 끄면 '3/4 완료 · 75%'이고 Toast는 늘지 않는다", async () => {
