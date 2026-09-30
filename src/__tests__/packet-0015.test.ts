@@ -17,7 +17,8 @@ mockRouter();
 //   - 계획 없음: '월급을 어디에 얼마씩 나눌지 정해볼까요?' + '월급 계획 짜기' 버튼(display="block").
 //       dday-hero·checklist-row 없음. 버튼 onClick: logClick('home_start_plan') → navigate('/plan').
 //   - 계획 있음: data-testid="dday-hero"(getNextPayday(getToday(), plan.payday) → 'D-{dday}' + label),
-//       <ChecklistCard plan={plan} />, '배분 결과 보기'(→ navigate('/result')), '계획 수정'(→ navigate('/plan')), FloatingTabBar(홈·기록).
+//       <ChecklistCard plan={plan} />, 히어로 안 '세팅표 보기'(→ navigate('/result') — 고도화 P2-02에서 '배분 결과 보기'를 대체),
+//       '계획 수정'(→ navigate('/plan')), FloatingTabBar(홈·기록).
 //   - navigate는 경로 문자열 하나만 넘긴다(state 없음 → 도착 화면의 location.state는 null).
 
 const { logClick } = vi.hoisted(() => ({ logClick: vi.fn() }));
@@ -115,7 +116,7 @@ describe("홈 화면 (/)", () => {
     renderHome();
 
     expect(screen.getAllByTestId("checklist-row")).toHaveLength(4);
-    expect(screen.getByRole("button", { name: "배분 결과 보기" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "세팅표 보기" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "계획 수정" })).toBeInTheDocument();
     const tabs = within(screen.getByRole("tablist")).getAllByRole("tab");
     expect(tabs.map((t) => t.getAttribute("aria-label"))).toEqual(["홈", "기록"]);
@@ -144,7 +145,7 @@ describe("홈 화면 (/)", () => {
     expect(logClick.mock.invocationCallOrder[0]).toBeLessThan(mockNavigate.mock.invocationCallOrder[0]);
   });
 
-  it("AC-3[P0]: '계획 수정'은 /plan으로, '배분 결과 보기'는 /result로 state 없이 이동한다", () => {
+  it("AC-3[P0]: '계획 수정'은 /plan으로, '세팅표 보기'는 /result로 state 없이 이동한다", () => {
     seedPlan(planA);
     renderHome();
 
@@ -152,7 +153,7 @@ describe("홈 화면 (/)", () => {
     expect(mockNavigate).toHaveBeenCalledTimes(1);
     expect(mockNavigate.mock.calls[0]).toEqual(["/plan"]);
 
-    fireEvent.click(screen.getByRole("button", { name: "배분 결과 보기" }));
+    fireEvent.click(screen.getByRole("button", { name: "세팅표 보기" }));
     expect(mockNavigate).toHaveBeenCalledTimes(2);
     expect(mockNavigate.mock.calls[1]).toEqual(["/result"]);
   });

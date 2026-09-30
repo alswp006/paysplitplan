@@ -12,5 +12,6 @@ export default defineConfig({
   brand: {
     primaryColor: '#3182F6',
   },
-  permissions: [],
+  // 세팅표 금액 복사(setClipboardText)에만 쓴다 — 사용자가 누른 금액만 복사한다(콘솔 권한 사유와 같은 문장).
+  permissions: [{ name: 'clipboard', access: 'write' }],
 });

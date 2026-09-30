@@ -57,6 +57,38 @@ export function getTrend(today: Date, store: RecordStore): TrendSummary {
 }
 
 /**
+ * 연속 기록 — current는 getTrend의 streak 규칙(진행 중인 이번 달은 끊지 않는다)과 같고,
+ * best는 기록 전체에서 이행률 100인 달이 가장 길게 이어진 길이다. 입력은 withLiveCurrentMonth를 거친 view다.
+ */
+export function getStreaks(store: RecordStore, today: Date): { current: number; best: number } {
+  const current = getTrend(today, store).streak;
+  const doneMonths = Object.keys(store.records)
+    .filter((m) => store.records[m]?.rate === 100)
+    .sort();
+  let best = 0;
+  let run = 0;
+  let prev: string | null = null;
+  for (const month of doneMonths) {
+    run = prev !== null && shiftMonth(prev, 1) === month ? run + 1 : 1;
+    best = Math.max(best, run);
+    prev = month;
+  }
+  return { current, best: Math.max(best, current) };
+}
+
+/**
+ * 저축·비상금 통장에 옮긴 돈 — 체크한 달의 그 달 금액(snapshot) 합계. 생활비·여가는 쓰는 돈이라 뺀다.
+ * 기록은 최근 24개월만 남으므로 이 합계도 최근 24개월 기준이다.
+ */
+export function movedTotal(store: RecordStore): number {
+  return Object.values(store.records).reduce((sum, r) => {
+    const amounts = r.snapshot?.amounts;
+    if (!amounts) return sum;
+    return sum + (r.checked?.saving ? amounts.saving : 0) + (r.checked?.emergency ? amounts.emergency : 0);
+  }, 0);
+}
+
+/**
  * 통장별 계획 vs 실제, 최근 N개월 이행률 (contract: calculateInsightsFn).
  * - tierComparison: CATEGORY_ORDER(생활비·저축·비상금·여가) 순서. planned는 현재 계획의 월 배분액,
  *   actual은 최근 monthCount개월 중 기록이 있는 달의 "체크한 통장 배분액" 월평균(내림). 기록이 없으면 0.

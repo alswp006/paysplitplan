@@ -21,6 +21,7 @@ export function SummaryHero({
   label,
   value,
   caption,
+  extra,
   action,
   ai,
   testId,
@@ -29,6 +30,8 @@ export function SummaryHero({
   /** 보통 <Amount .../> 또는 강조 텍스트(typography t1~t2) */
   value: ReactNode;
   caption?: ReactNode;
+  /** caption과 action 사이의 보조 요소(예: 한 줄 안내·막대). 12px 띄운다. */
+  extra?: ReactNode;
   /** 카드 내 1차 진입 버튼(예: <Button display="block">). 탭-루트의 진입 액션. */
   action?: ReactNode;
   /** AI 생성 결과면 true → "AI가 생성한 결과입니다" 라벨 표시(고지 의무) */
@@ -45,6 +48,12 @@ export function SummaryHero({
         <>
           <Spacing size={4} />
           <Paragraph.Text typography="t6">{caption}</Paragraph.Text>
+        </>
+      ) : null}
+      {extra ? (
+        <>
+          <Spacing size={12} />
+          {extra}
         </>
       ) : null}
       {action ? (

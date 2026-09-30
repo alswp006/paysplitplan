@@ -2,6 +2,7 @@ import { generateId } from "./id";
 import { isIsoTimestamp, nowIso } from "./date";
 import { isValidPlan, isValidRecord, normalizeLegacyPlan, normalizeLegacyRecord } from "./validate";
 import { formatManwon, formatWon } from "./format";
+import { foldPrunedIntoGoal } from "./goal";
 import type { MonthRecord, PlanDraft, RecordStore, ReviewPromptState, SalaryPlan, SaveResult } from "./types";
 
 export function getItem<T>(key: string): T | null {
@@ -180,7 +181,8 @@ export function pruneMonths(
  * - 다른 달의 원문 항목은 유효하든 아니든 그대로 둔다(loadRecords가 걸러 읽을 뿐 지우지 않는다).
  * - 원문 전체가 파싱되지 않거나 모양이 틀리면, 또는 대상 달의 원문이 검증을 통과하지 못하면
  *   원문 전체를 RECORDS_BACKUP_KEY에 복사한 **뒤에만** 쓴다. 복사하지 못하면 쓰지 않고 QUOTA.
- * - 24개월을 넘으면 pruneMonths로 가장 오래된 달부터 지운다.
+ * - 24개월을 넘으면 pruneMonths로 가장 오래된 달부터 지운다. 지운 달의 비상금 체크는 goal.foldPrunedIntoGoal이
+ *   목표에 합친다(합치지 못하면 그 쓰기에서는 지우지 않는다).
  * 던지지 않는다 — 쓰기 실패면 {ok:false, error:"QUOTA"}이고 기존 값이 그대로 남는다.
  */
 export function writeMonthRecord(record: MonthRecord): SaveResult {
@@ -206,7 +208,12 @@ export function writeMonthRecord(record: MonthRecord): SaveResult {
       }
     }
     records[record.month] = record;
-    pruneMonths(records);
+    const pruned = pruneMonths(records);
+    // 지우는 달의 비상금 체크는 목표(baseBalance)에 먼저 합친다 — 모은 돈 총합이 변하지 않게.
+    // 합치지 못하면(목표 쓰기 실패) 이번에는 정리하지 않는다: 25개월이 남는 것이 모은 돈을 잃는 것보다 낫다.
+    if (pruned.length > 0 && !foldPrunedIntoGoal(pruned)) {
+      for (const [month, value] of pruned) records[month] = value;
+    }
     localStorage.setItem(RECORDS_KEY, JSON.stringify({ version: 1, records }));
     return { ok: true };
   } catch {

@@ -47,11 +47,22 @@ export function RatioBlock({
     <div>
       <Chip kind="select" wrap>
         {PRESET_LIST.map((p) => (
-          <ChipItem key={p.id} selected={presetId === p.id} onClick={() => pickPreset(p.id, p.ratios)}>
+          // aria-pressed: 벤더 ChipItem은 선택 상태를 색으로만 그리고 접근성 속성을 달지 않는다(2.5.1 런타임).
+          // div 속성은 버튼으로 그대로 펼쳐지므로 여기서 넘겨 스크린리더가 "선택됨"을 읽게 한다.
+          <ChipItem
+            key={p.id}
+            selected={presetId === p.id}
+            aria-pressed={presetId === p.id}
+            onClick={() => pickPreset(p.id, p.ratios)}
+          >
             {p.name}
           </ChipItem>
         ))}
-        <ChipItem selected={presetId === CUSTOM_ID} onClick={() => pickPreset(CUSTOM_ID, ratios)}>
+        <ChipItem
+          selected={presetId === CUSTOM_ID}
+          aria-pressed={presetId === CUSTOM_ID}
+          onClick={() => pickPreset(CUSTOM_ID, ratios)}
+        >
           직접 조정
         </ChipItem>
       </Chip>

@@ -22,11 +22,34 @@ export function ratioParam(r: Ratios): string {
   return r.join("-");
 }
 
+/** [40, 40, 10, 10] → "생활비 40 · 저축 40 · 비상금 10 · 여가 10" (공유 메시지·받은 비율 배너가 같은 줄을 쓴다) */
+export function ratioLine(r: Ratios): string {
+  return CATEGORY_ORDER.map((key, i) => `${CATEGORY_LABEL[key]} ${r[i]}`).join(" · ");
+}
+
 /**
  * 공유 메시지 — 월급·금액은 싣지 않고 비율만 보낸다(받는 사람이 자기 월급으로 계산한다).
  * "월급쪼개기로 이렇게 나눠요\n생활비 40 · 저축 40 · 비상금 10 · 여가 10\n내 월급으로 계산해 보기"
  */
 export function buildRatioShareMessage(r: Ratios): string {
-  const parts = CATEGORY_ORDER.map((key, i) => `${CATEGORY_LABEL[key]} ${r[i]}`).join(" · ");
-  return `월급쪼개기로 이렇게 나눠요\n${parts}\n내 월급으로 계산해 보기`;
+  return `월급쪼개기로 이렇게 나눠요\n${ratioLine(r)}\n내 월급으로 계산해 보기`;
+}
+
+const RATIO_PARAM_RE = /^\d{1,3}(-\d{1,3}){3}$/;
+
+/**
+ * 받은 링크의 비율(`?r=40-40-10-10`)을 읽는다. 값 4개가 각각 0~100이고 5의 배수이며 합이 100일 때만 Ratios,
+ * 하나라도 어기면 null(화면은 조용히 무시한다). 던지지 않는다.
+ */
+export function parseSharedRatios(search: string): Ratios | null {
+  try {
+    const raw = new URLSearchParams(search).get("r");
+    if (raw === null || !RATIO_PARAM_RE.test(raw)) return null;
+    const values = raw.split("-").map(Number);
+    if (values.some((v) => v < 0 || v > 100 || v % 5 !== 0)) return null;
+    if (values.reduce((sum, v) => sum + v, 0) !== 100) return null;
+    return [values[0], values[1], values[2], values[3]];
+  } catch {
+    return null;
+  }
 }

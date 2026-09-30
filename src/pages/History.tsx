@@ -4,6 +4,7 @@ import { CalendarCheck, House, History as HistoryIcon } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { ScreenScaffold } from '@/components/ScreenScaffold';
 import { SummaryHero } from '@/components/SummaryHero';
+import { Card } from '@/components/Card';
 import { CountUp } from '@/components/CountUp';
 import { MiniBar } from '@/components/MiniBar';
 import { AdSlot } from '@/components/AdSlot';
@@ -11,8 +12,9 @@ import { EmptyState } from '@/components/StateView';
 import { FloatingTabBar } from '@/components/FloatingTabBar';
 import { logClick } from '@/lib/analytics';
 import { getToday, monthKey } from '@/lib/date';
-import { formatMonthLabel } from '@/lib/format';
+import { formatMonthLabel, formatWon } from '@/lib/format';
 import { withLiveCurrentMonth } from '@/lib/homeView';
+import { getStreaks, movedTotal } from '@/lib/insights';
 import { loadRecords, peekPlan } from '@/lib/storage';
 import { useImpressionRef } from '@/lib/useImpression';
 
@@ -71,8 +73,19 @@ export default function History() {
     );
   }
 
-  const thisMonth = view.records[monthKey(getToday())];
+  const today = getToday();
+  const thisMonth = view.records[monthKey(today)];
   const thisRate = thisMonth ? thisMonth.rate : 0;
+  // 연속 기록·옮긴 돈 — 기록 탭이 "쌓였다"는 증거를 보여 준다(손실이 아니라 이어 온 것을 말한다).
+  const { current, best } = getStreaks(view, today);
+  const moved = movedTotal(view);
+  const heroCaption = !thisMonth
+    ? '이번 달은 아직 체크 전이에요'
+    : current >= 1
+      ? `${current}개월 연속 지켰어요 · 가장 긴 기록 ${best}개월`
+      : best >= 1
+        ? `가장 긴 기록 ${best}개월`
+        : undefined;
 
   return (
     <ScreenScaffold top={top} bottom={<FloatingTabBar items={TABS} />}>
@@ -81,8 +94,22 @@ export default function History() {
         testId="history-hero"
         label="이번 달 이행률"
         value={<CountUp value={thisRate} unit="%" />}
-        caption={thisMonth ? undefined : '이번 달은 아직 체크 전이에요'}
+        caption={heroCaption}
       />
+      {moved > 0 ? (
+        <>
+          <Spacing size={12} />
+          <Card testId="moved-total">
+            <Paragraph.Text typography="t6" color="var(--adaptiveGrey600)">
+              저축·비상금 통장에 옮긴 돈
+            </Paragraph.Text>
+            <Paragraph.Text typography="t3">{formatWon(moved)}</Paragraph.Text>
+            <Paragraph.Text typography="t6" color="var(--adaptiveGrey600)">
+              직접 체크한 이체 기준이에요 · 최근 24개월
+            </Paragraph.Text>
+          </Card>
+        </>
+      ) : null}
       <Spacing size={24} />
       <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
         {monthsDesc.map((month) => {

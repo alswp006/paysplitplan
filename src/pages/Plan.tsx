@@ -1,12 +1,14 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Button, ListRow, Paragraph, Spacing, TextField, Top, useToast } from "@toss/tds-mobile";
 import { generateHapticFeedback } from "@apps-in-toss/web-framework";
 import { ScreenScaffold } from "@/components/ScreenScaffold";
 import { SubmitFooter } from "@/components/BottomCTA";
 import { RatioBlock } from "@/components/plan/RatioBlock";
 import { FixedCostSheet } from "@/components/plan/FixedCostSheet";
-import { logClick } from "@/lib/analytics";
+import { Card } from "@/components/Card";
+import { logClick, logImpression } from "@/lib/analytics";
+import { parseSharedRatios, ratioLine } from "@/lib/deeplink";
 import { formatAmountRaw, formatManwon, formatWon } from "@/lib/format";
 import { PRESETS, resolvePresetId } from "@/lib/plan";
 import { sumRatios } from "@/lib/ratioForm";
@@ -21,7 +23,7 @@ import {
   validateSalaryInput,
 } from "@/lib/planForm";
 import { loadPlan } from "@/lib/storage";
-import type { FixedCost, Ratios, RouteState } from "@/lib/types";
+import type { FixedCost, Ratios, RouteState, SalaryPlan } from "@/lib/types";
 
 const DEFAULT_PAYDAY = "25";
 // TDS 입력·리스트의 내장 좌우 패딩(20px)에 맞춘 맨 텍스트·버튼용 거터 — 정렬선을 20px 하나로 통일한다.
@@ -46,30 +48,62 @@ interface FormState {
   presetId: string;
 }
 
-function initialState(): FormState {
-  const plan = loadPlan();
-  if (!plan) {
-    return {
-      salaryRaw: "",
-      paydayRaw: DEFAULT_PAYDAY,
-      fixedCosts: [],
-      ratios: [...PRESETS.p532.ratios] as Ratios,
-      presetId: PRESETS.p532.id,
-    };
-  }
-  return {
-    salaryRaw: plan.salary.toLocaleString("ko-KR"),
-    paydayRaw: String(plan.payday),
-    fixedCosts: plan.fixedCosts,
-    ratios: [...plan.ratios] as Ratios,
-    presetId: resolvePresetId(plan.ratios),
-  };
+/**
+ * 폼 초기값. 저장된 계획이 있으면 월급·고정비·월급날·비율을 채우고, 없으면 기본값(월급 빈칸 · 25일 · 기본 5:3:1:1).
+ * 받은 링크의 비율(`?r=`)이 유효하면 비율과 프리셋만 그것으로 덮는다 — 월급·고정비는 받은 사람의 것이다.
+ * 이 화면은 저장하지 않는다(저장은 결과 화면의 "이 계획 저장하기"뿐) — 받은 비율로 들어와도 기존 계획은 그대로다.
+ */
+function initialState(plan: SalaryPlan | null, shared: Ratios | null): FormState {
+  const base: FormState = plan
+    ? {
+        salaryRaw: plan.salary.toLocaleString("ko-KR"),
+        paydayRaw: String(plan.payday),
+        fixedCosts: plan.fixedCosts,
+        ratios: [...plan.ratios] as Ratios,
+        presetId: resolvePresetId(plan.ratios),
+      }
+    : {
+        salaryRaw: "",
+        paydayRaw: DEFAULT_PAYDAY,
+        fixedCosts: [],
+        ratios: [...PRESETS.p532.ratios] as Ratios,
+        presetId: PRESETS.p532.id,
+      };
+  if (!shared) return base;
+  return { ...base, ratios: [...shared] as Ratios, presetId: resolvePresetId(shared) };
+}
+
+/** 받은 비율 배너 — 공유 링크(`/plan?r=`)로 들어왔을 때 맨 위에 한 번 보인다. */
+function SharedRatioBanner({ ratios, hasPlan }: { ratios: Ratios; hasPlan: boolean }) {
+  return (
+    <Card testId="shared-ratio-banner" style={{ backgroundColor: "var(--adaptiveGreen50)" }}>
+      <Paragraph.Text typography="t5">받은 비율로 채웠어요</Paragraph.Text>
+      <Paragraph.Text typography="t6">{ratioLine(ratios)}</Paragraph.Text>
+      <Paragraph.Text typography="t6" color="var(--adaptiveGrey600)">
+        {hasPlan ? "저장하기 전까지 기존 계획은 그대로예요" : "월급과 고정비를 넣으면 금액이 나와요"}
+      </Paragraph.Text>
+    </Card>
+  );
 }
 
 export default function Plan() {
   const navigate = useNavigate();
   const { openToast } = useToast();
-  const [form, setForm] = useState<FormState>(initialState);
+  const location = useLocation();
+  // 받은 링크의 비율은 진입 때 한 번만 읽는다 — 무효 값(합 110·5의 배수 아님 등)은 조용히 무시한다.
+  const [entry] = useState(() => {
+    const plan = loadPlan(); // 마운트 때 1회
+    const shared = parseSharedRatios(location.search);
+    return { shared, hasPlan: plan !== null, form: initialState(plan, shared) };
+  });
+  const { shared, hasPlan } = entry;
+  const [form, setForm] = useState<FormState>(entry.form);
+  const openLogged = useRef(false);
+  useEffect(() => {
+    if (!shared || openLogged.current) return;
+    openLogged.current = true;
+    logImpression("ratio_link_open");
+  }, [shared]);
   const [salaryTouched, setSalaryTouched] = useState(false);
   const [paydayTouched, setPaydayTouched] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -130,6 +164,14 @@ export default function Plan() {
         />
       }
     >
+      {shared ? (
+        <>
+          <div style={GUTTER}>
+            <SharedRatioBanner ratios={shared} hasPlan={hasPlan} />
+          </div>
+          <Spacing size={16} />
+        </>
+      ) : null}
       <TextField
         variant="box"
         label="월급"

@@ -15,6 +15,8 @@ import { IGNORED_CONSOLE } from "./console-allowlist";
 const ROUTES: { path: string; name: string }[] = [
   { path: "/", name: "home" },
   { path: "/plan", name: "plan" },
+  // 공유 링크로 받은 비율 착지(라우트는 /plan 그대로 — App.tsx 라우트 수는 변하지 않는다)
+  { path: "/plan?r=40-40-10-10", name: "plan-shared" },
   { path: "/history", name: "history" },
   { path: "/result", name: "result" },
   { path: "/notfound", name: "notfound" },

@@ -296,3 +296,212 @@ test.describe("phase 1", () => {
     guard.expectClean();
   });
 });
+
+// ── phase 2: 은행 세팅표 · 비상금 목표 · 받은 비율 착지 ──
+
+const GOAL_KEY = "paysplit:goal:v1";
+const SEED_B_SHEET = [
+  "월급쪼개기 세팅표 · 매달 11일 이체",
+  "생활비 통장 862,000원",
+  "저축 통장 862,000원",
+  "비상금 통장 215,500원",
+  "여가 통장 215,500원",
+].join("\n");
+
+/** TDS 토스트는 포털의 aria-live 영역에 뜬다(같은 포털에 글자 폭을 재는 화면 밖 복사본이 하나 더 있다). */
+function toast(page: Page, text: string) {
+  return page.locator('#tds-mobile-portal-container [aria-live="polite"]').getByText(text);
+}
+
+async function readClipboard(page: Page): Promise<string> {
+  return page.evaluate(() => navigator.clipboard.readText());
+}
+
+test.describe("phase 2", () => {
+  test("F1-1·2·3: 결과 화면 세팅표 — 통장 4행, 저축 복사, 전체 복사가 클립보드에 그대로 들어간다", async ({ page, context }) => {
+    const guard = consoleGuard(page);
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await atTime(page);
+    await seedPlan(page, SEED_B);
+    await page.goto("/result");
+
+    const rows = page.locator("[data-testid=setup-sheet] [data-testid=allocation-card]");
+    await expect(rows).toHaveCount(4);
+    const expected: Array<[string, string]> = [
+      ["생활비 통장", "862,000원"],
+      ["저축 통장", "862,000원"],
+      ["비상금 통장", "215,500원"],
+      ["여가 통장", "215,500원"],
+    ];
+    for (const [i, [label, amount]] of expected.entries()) {
+      await expect(rows.nth(i)).toContainText(label);
+      await expect(rows.nth(i)).toContainText(amount);
+    }
+
+    await page.getByRole("button", { name: "저축 통장 금액 복사" }).click();
+    await expect(toast(page, "저축 통장 862,000원을 복사했어요")).toBeVisible();
+    expect(await readClipboard(page)).toBe("862000");
+
+    await page.getByRole("button", { name: "세팅표 전체 복사" }).click();
+    await expect(toast(page, "세팅표를 복사했어요")).toBeVisible();
+    expect(await readClipboard(page)).toBe(SEED_B_SHEET);
+    guard.expectClean();
+  });
+
+  test("F1-4: 클립보드 권한이 없으면 실패 토스트가 뜨고 콘솔 에러는 0건이다", async ({ page }) => {
+    const guard = consoleGuard(page);
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, "clipboard", {
+        configurable: true,
+        value: { writeText: () => Promise.reject(new DOMException("Write permission denied.", "NotAllowedError")) },
+      });
+    });
+    await atTime(page);
+    await seedPlan(page, SEED_B);
+    await page.goto("/result");
+    await page.getByRole("button", { name: "저축 통장 금액 복사" }).click();
+    await expect(toast(page, "복사하지 못했어요. 금액을 길게 눌러 복사해 주세요")).toBeVisible();
+    guard.expectClean();
+  });
+
+  test("F1-5: 월급날 31일이면 이체일은 '월급날 다음 날'이고 '32일'은 없다", async ({ page }) => {
+    const guard = consoleGuard(page);
+    await atTime(page);
+    await seedPlan(page, { ...SEED_B, payday: 31 });
+    await page.goto("/result");
+    const sheet = page.getByTestId("setup-sheet");
+    await expect(sheet).toContainText("이체는 월급날 다음 날");
+    expect(await page.locator("body").innerText()).not.toContain("32일");
+    guard.expectClean();
+  });
+
+  test("F1-6: 홈 넛지 — 복사 전 '은행 세팅 전', 전체 복사 뒤 사라지고, 계획을 바꿔 저장하면 '계획이 바뀌었어요'", async ({ page, context }) => {
+    const guard = consoleGuard(page);
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await atTime(page);
+    await seedPlan(page, SEED_B);
+    await page.goto("/");
+    await expect(page.getByTestId("setup-nudge")).toContainText("은행 세팅 전이에요");
+
+    await page.getByRole("button", { name: "세팅표 보기" }).click();
+    await page.waitForURL(/\/result$/);
+    await page.getByRole("button", { name: "세팅표 전체 복사" }).click();
+    await expect(toast(page, "세팅표를 복사했어요")).toBeVisible();
+    await page.getByRole("button", { name: "홈에서 이체 체크하기" }).click();
+    await expect(page.getByTestId("dday-hero")).toBeVisible();
+    await expect(page.getByTestId("setup-nudge")).toHaveCount(0);
+
+    await page.getByRole("button", { name: "계획 수정" }).click();
+    await page.getByRole("button", { name: "여유 6:2:1:1" }).click();
+    await page.getByRole("button", { name: "배분 결과 보기" }).click();
+    await page.getByRole("button", { name: "이 계획 저장하기" }).click();
+    await page.getByRole("button", { name: "바꾸기" }).click();
+    await page.getByRole("button", { name: "홈에서 이체 체크하기" }).click();
+    await expect(page.getByTestId("setup-nudge")).toContainText("계획이 바뀌었어요");
+    guard.expectClean();
+  });
+
+  test("F1-7·8: 세팅표 금액은 한 줄이고 가로 스크롤이 없으며, 끝까지 내리면 마지막 콘텐츠가 저장 버튼에 가리지 않는다", async ({ page }) => {
+    const guard = consoleGuard(page);
+    await atTime(page);
+    await seedPlan(page, SEED_B);
+    await page.goto("/result");
+
+    const amounts = page.locator("[data-testid=allocation-card]").getByText(/^\d{1,3}(,\d{3})*원$/);
+    await expect(amounts).toHaveCount(4);
+    for (let i = 0; i < 4; i++) {
+      const box = (await amounts.nth(i).boundingBox())!;
+      expect(box.height, `금액 ${i} 높이`).toBeLessThanOrEqual(26);
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    await page.waitForTimeout(300);
+    const last = (await page.getByTestId("locked-tier").boundingBox())!;
+    const save = (await page.getByRole("button", { name: "홈에서 이체 체크하기" }).boundingBox())!;
+    expect(last.y + last.height).toBeLessThanOrEqual(save.y);
+    guard.expectClean();
+  });
+
+  test("F2-1·2·3: 비상금 목표 — 6개월치 설정·새로고침 유지·체크 반영·잔액 맞추기", async ({ page }) => {
+    const guard = consoleGuard(page);
+    await atTime(page);
+    await seedPlan(page, SEED_B);
+    await page.goto("/");
+
+    const card = page.getByTestId("emergency-goal");
+    await expect(card).toContainText("1,557,000원");
+    await card.getByRole("button", { name: "6개월치" }).click();
+    await expect(card).toContainText("목표 9,342,000원");
+
+    await page.reload();
+    await expect(card.getByRole("radio", { name: "6개월" })).toBeChecked();
+
+    await page.getByRole("switch", { name: "비상금 통장 이체 완료" }).click();
+    await expect(card).toContainText("0.1개월치 모았어요");
+    await expect(card).toContainText("이번 달 +215,500원");
+    await expect(card).toContainText("2030년 4월쯤");
+
+    await card.getByRole("button", { name: "잔액 맞추기" }).click();
+    await page.getByRole("textbox", { name: "비상금 통장 잔액" }).fill("3000000");
+    await expect(page.getByRole("textbox", { name: "비상금 통장 잔액" })).toHaveValue("3,000,000");
+    await page.getByRole("button", { name: "잔액 저장" }).click();
+    await expect(card).toContainText("1.9개월치 모았어요");
+    await expect(card).toContainText("2029년 3월쯤");
+    guard.expectClean();
+  });
+
+  test("F2-4: 목표 원문이 깨졌으면 크래시 없이 '목표 없음' 상태이고, 새로고침 뒤에도 원문이 남아 있다", async ({ page }) => {
+    const guard = consoleGuard(page);
+    await atTime(page);
+    await seedPlan(page, SEED_B);
+    await seedRaw(page, { [GOAL_KEY]: "{bad" });
+    await page.goto("/");
+    await expect(page.getByTestId("emergency-goal").getByRole("button", { name: "6개월치" })).toBeVisible();
+    await page.reload();
+    await expect(page.getByTestId("dday-hero")).toBeVisible();
+    expect(await page.evaluate((k) => localStorage.getItem(k), GOAL_KEY)).toBe("{bad");
+    guard.expectClean();
+  });
+
+  test("F3-1: 받은 비율 링크 — 빈 저장소에서 배너와 '저축 집중 4:4:1:1', 월급을 넣으면 결과 저축이 40%", async ({ page }) => {
+    const guard = consoleGuard(page);
+    await atTime(page);
+    await page.goto("/plan?r=40-40-10-10");
+    await expect(page.getByTestId("shared-ratio-banner")).toBeVisible();
+    await expect(page.getByTestId("shared-ratio-banner")).toContainText("생활비 40 · 저축 40 · 비상금 10 · 여가 10");
+    await expect(page.getByRole("button", { name: "저축 집중 4:4:1:1" })).toHaveAttribute("aria-pressed", "true");
+
+    await page.getByRole("textbox", { name: "월급", exact: true }).fill("3000000");
+    await page.getByRole("button", { name: "배분 결과 보기" }).click();
+    await page.waitForURL(/\/result$/);
+    const saving = page.locator("[data-testid=allocation-card]").filter({ hasText: "저축 통장" });
+    await expect(saving).toContainText("나눌 돈의 40%");
+    guard.expectClean();
+  });
+
+  test("F3-2: 무효한 비율 링크(합 110 · 문자)는 조용히 무시한다 — 배너 없음 · 기본 5:3:1:1", async ({ page }) => {
+    const guard = consoleGuard(page);
+    await atTime(page);
+    for (const path of ["/plan?r=90-20-0-0", "/plan?r=abc"]) {
+      await page.goto(path);
+      await expect(page.getByRole("button", { name: "기본 5:3:1:1" })).toHaveAttribute("aria-pressed", "true");
+      await expect(page.getByTestId("shared-ratio-banner")).toHaveCount(0);
+    }
+    guard.expectClean();
+  });
+
+  test("F3-3: 계획이 있는 사람이 받은 비율로 들어와도 저장 전까지 기존 계획은 그대로다", async ({ page }) => {
+    const guard = consoleGuard(page);
+    await atTime(page);
+    await seedPlan(page, SEED_B);
+    await page.goto("/plan?r=60-20-10-10");
+    await expect(page.getByTestId("shared-ratio-banner")).toContainText("저장하기 전까지 기존 계획은 그대로예요");
+    await expect(page.getByRole("textbox", { name: "월급", exact: true })).toHaveValue("2,850,000");
+    await expect(page.getByRole("button", { name: "여유 6:2:1:1" })).toHaveAttribute("aria-pressed", "true");
+
+    await page.goto("/");
+    await expect(page.getByTestId("checklist-card")).toContainText("저축 통장 · 862,000원");
+    guard.expectClean();
+  });
+});

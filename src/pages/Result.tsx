@@ -1,20 +1,20 @@
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Button, Paragraph, Spacing, Top } from "@toss/tds-mobile";
+import { Button, Spacing, Top } from "@toss/tds-mobile";
 import { ChartPie } from "lucide-react";
 import { ScreenScaffold } from "@/components/ScreenScaffold";
 import { EmptyState } from "@/components/StateView";
 import { SummaryHero } from "@/components/SummaryHero";
 import { CountUp } from "@/components/CountUp";
-import { Card } from "@/components/Card";
-import { MiniBar } from "@/components/MiniBar";
 import { TossRewardAd } from "@/components/TossRewardAd";
 import { LockedTierSection } from "@/components/result/LockedTierSection";
 import { ResultSaveFooter } from "@/components/result/ResultSaveFooter";
+import { SetupSheetSection } from "@/components/result/SetupSheetSection";
+import { YearProjection } from "@/components/result/YearProjection";
 import { logClick } from "@/lib/analytics";
 import { buildRatioShareMessage, ratioParam, toIntossPath } from "@/lib/deeplink";
 import { formatWon } from "@/lib/format";
-import { CATEGORY_LABEL, CATEGORY_ORDER, calculateAllocation } from "@/lib/plan";
+import { calculateAllocation } from "@/lib/plan";
 import { shareApp } from "@/lib/share";
 import { loadPlan } from "@/lib/storage";
 import { useImpressionRef } from "@/lib/useImpression";
@@ -48,7 +48,7 @@ export default function Result() {
   const [source] = useState(() => resolveSource(location.state));
   const freeRef = useImpressionRef("result_free_tier");
 
-  const top = <Top title={<Top.TitleParagraph>배분 결과</Top.TitleParagraph>} />;
+  const top = <Top title={<Top.TitleParagraph>통장별 세팅표</Top.TitleParagraph>} />;
 
   if (!source) {
     return (
@@ -69,8 +69,7 @@ export default function Result() {
   }
 
   const { draft, fromSavedPlan } = source;
-  const { fixedTotal, available, amounts } = calculateAllocation(draft.salary, draft.fixedCosts, draft.ratios);
-  const visibleKeys = CATEGORY_ORDER.filter((k) => amounts[k] > 0);
+  const { fixedTotal, available } = calculateAllocation(draft.salary, draft.fixedCosts, draft.ratios);
 
   // 월급·금액은 보내지 않고 비율만 보낸다. 받은 사람은 /plan?r=로 들어와 자기 월급으로 계산한다.
   const onShare = () => {
@@ -92,24 +91,8 @@ export default function Result() {
           caption={`월급 ${formatWon(draft.salary)} − 고정비 ${formatWon(fixedTotal)}`}
         />
         <Spacing size={16} />
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {visibleKeys.map((key) => {
-            const ratio = draft.ratios[CATEGORY_ORDER.indexOf(key)];
-            return (
-              <Card key={key} testId="allocation-card">
-                <Paragraph.Text typography="t6" color="var(--adaptiveGrey600)">
-                  {`${CATEGORY_LABEL[key]} · ${ratio}%`}
-                </Paragraph.Text>
-                <Spacing size={4} />
-                <div>
-                  <Paragraph.Text typography="t3">{formatWon(amounts[key])}</Paragraph.Text>
-                </div>
-                <Spacing size={8} />
-                <MiniBar ratio={ratio / 100} />
-              </Card>
-            );
-          })}
-        </div>
+        {/* 무료 층의 본문 — 은행 앱에 붙여 넣을 통장별 금액. 통장 금액 텍스트는 여기에서만 한 번씩 나온다. */}
+        <SetupSheetSection draft={draft} />
         <Spacing size={16} />
         <div style={{ display: "flex", flexDirection: "column" }}>
           <Button variant="weak" size="large" display="block" onClick={onShare}>
@@ -119,14 +102,17 @@ export default function Result() {
       </div>
       <Spacing size={32} />
       <TossRewardAd adGroupId={REWARD_AD_GROUP_ID}
-        description="광고를 보면 월급 구간별 저축 비교와 6개월 추이를 볼 수 있어요"
-        buttonText="광고 보고 비교 보기"
+        description="광고를 보면 1년 뒤 모이는 돈과 월급 구간별 저축 비교를 볼 수 있어요"
+        buttonText="광고 보고 더 보기"
       >
         <div data-testid="locked-tier">
+          <YearProjection plan={draft} />
+          <Spacing size={24} />
           <LockedTierSection plan={draft} />
         </div>
       </TossRewardAd>
-      <Spacing size={80} />
+      {/* 하단 고정 저장 버튼(FixedBottomCTA)과 그 위 그라데이션에 마지막 콘텐츠가 가리지 않게 넉넉히 둔다(D3). */}
+      <Spacing size={120} />
     </ScreenScaffold>
   );
 }

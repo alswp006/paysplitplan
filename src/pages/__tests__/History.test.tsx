@@ -120,6 +120,48 @@ describe("History 화면", () => {
     removeItem.mockRestore();
   });
 
+  it("07·08·09월이 모두 100%면 히어로 캡션에 연속 기록, 목록 위에 저축·비상금으로 옮긴 돈 합계가 보인다", () => {
+    localStorage.setItem(
+      RECORDS_KEY,
+      JSON.stringify({
+        version: 1,
+        records: { "2026-07": record("2026-07", 100), "2026-08": record("2026-08", 100), "2026-09": record("2026-09", 100) },
+      }),
+    );
+    renderWithRouter(<History />, { initialEntries: ["/history"] });
+
+    expect(screen.getByTestId("history-hero").textContent).toContain("3개월 연속 지켰어요 · 가장 긴 기록 3개월");
+    const moved = screen.getByTestId("moved-total");
+    expect(moved.textContent).toContain("저축·비상금 통장에 옮긴 돈");
+    expect(within(moved).getByText("2,880,000원")).toBeInTheDocument(); // 3 × (720,000 + 240,000)
+    expect(moved.textContent).toContain("직접 체크한 이체 기준이에요 · 최근 24개월");
+    // 증거 카드는 히어로와 월 목록 사이에 있다
+    const firstRow = screen.getAllByTestId("month-row")[0];
+    expect(moved.compareDocumentPosition(firstRow) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("옮긴 돈이 0원이면 증거 카드가 없고, 100%인 달이 없으면 연속 기록 캡션도 없다", () => {
+    const none = { ...record("2026-09", 0), checked: { living: false, saving: false, emergency: false, leisure: false } };
+    localStorage.setItem(
+      RECORDS_KEY,
+      JSON.stringify({ version: 1, records: { "2026-09": none } }),
+    );
+    renderWithRouter(<History />, { initialEntries: ["/history"] });
+    expect(screen.queryByTestId("moved-total")).toBeNull();
+    expect(screen.getByTestId("history-hero").textContent).not.toContain("가장 긴 기록");
+  });
+
+  it("6월 100% · 9월 50%면 캡션은 '가장 긴 기록 1개월'이다", () => {
+    localStorage.setItem(
+      RECORDS_KEY,
+      JSON.stringify({ version: 1, records: { "2026-06": record("2026-06", 100), "2026-09": record("2026-09", 50) } }),
+    );
+    renderWithRouter(<History />, { initialEntries: ["/history"] });
+    const hero = screen.getByTestId("history-hero");
+    expect(hero.textContent).toContain("가장 긴 기록 1개월");
+    expect(hero.textContent).not.toContain("연속");
+  });
+
   it("기록이 없으면 빈 상태를 보여주고 버튼이 홈으로 이동한다", () => {
     renderWithRouter(<History />, { initialEntries: ["/history"] });
 

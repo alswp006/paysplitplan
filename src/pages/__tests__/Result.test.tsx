@@ -71,6 +71,37 @@ describe("Result 레이아웃", () => {
     expect(message).not.toMatch(/\d{1,3}(,\d{3})+원|만 원/);
   });
 
+  it("잠금 층 맨 앞에 '이 계획대로 1년이면' — 시드 A 저축 8,640,000원 · 비상금 2,880,000원(무료 층에는 없다)", () => {
+    savePlan(EXAMPLE_A);
+    renderWithRouter(<Result />);
+
+    const locked = screen.getByTestId("locked-tier");
+    const year = within(locked).getByTestId("year-projection");
+    expect(year.textContent).toContain("이 계획대로 1년이면");
+    expect(within(year).getByText("8,640,000원")).toBeInTheDocument();
+    expect(within(year).getByText("2,880,000원")).toBeInTheDocument();
+    expect(year.textContent).toContain("매달 계획대로 옮긴다고 가정한 단순 합계예요");
+    // 1년 카드가 구간 비교보다 앞이다
+    expect(year.compareDocumentPosition(within(locked).getByTestId("bracket-compare")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(screen.getByTestId("free-tier")).queryByTestId("year-projection")).toBeNull();
+  });
+
+  it("무료 층은 히어로 → 세팅표 → '비율 공유하기' 순이고 Top 제목은 '통장별 세팅표'다", () => {
+    savePlan(EXAMPLE_A);
+    renderWithRouter(<Result />);
+
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("통장별 세팅표");
+    const free = screen.getByTestId("free-tier");
+    const hero = within(free).getByTestId("available-hero");
+    const sheet = within(free).getByTestId("setup-sheet");
+    const share = within(free).getByRole("button", { name: "비율 공유하기" });
+    expect(hero.compareDocumentPosition(sheet) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(sheet.compareDocumentPosition(share) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // 통장 카드는 세팅표의 행이다(예전 카드 4개 + MiniBar는 없다)
+    expect(within(sheet).getAllByTestId("allocation-card")).toHaveLength(4);
+    expect(within(free).queryAllByRole("progressbar")).toHaveLength(0);
+  });
+
   it("계획이 없으면 빈 상태와 '월급 계획 짜기'를 보이고 결과 층은 없다", () => {
     renderWithRouter(<Result />);
 

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Top, Paragraph, Spacing, Button } from '@toss/tds-mobile';
-import { House, History as HistoryIcon, Wallet } from 'lucide-react';
+import { House, History as HistoryIcon, Landmark, Wallet } from 'lucide-react';
 import { generateHapticFeedback } from '@apps-in-toss/web-framework';
 import { useNavigate } from 'react-router-dom';
 import { ScreenScaffold } from '@/components/ScreenScaffold';
@@ -8,10 +8,19 @@ import { SummaryHero } from '@/components/SummaryHero';
 import { FloatingTabBar } from '@/components/FloatingTabBar';
 import { EmptyState } from '@/components/StateView';
 import { ChecklistCard } from '@/components/home/ChecklistCard';
+import { EmergencyGoalCard } from '@/components/home/EmergencyGoalCard';
 import { logClick } from '@/lib/analytics';
 import { getToday } from '@/lib/date';
 import { buildHomeHero } from '@/lib/homeHero';
+import { loadSetupState, setupNudge } from '@/lib/setupState';
 import { loadPlan, loadRecords } from '@/lib/storage';
+import type { SetupNudge } from '@/lib/types';
+
+// 은행 세팅을 아직 안 했거나(복사 기록 없음) 계획이 바뀌어 은행 금액도 바꿔야 할 때 히어로 아래 한 줄.
+const NUDGE_TEXT: Record<Exclude<SetupNudge, 'none'>, string> = {
+  notYet: '은행 세팅 전이에요 · 세팅표에서 금액을 복사해 자동이체에 붙여 넣어요',
+  changed: '계획이 바뀌었어요 · 은행 자동이체 금액도 바꿀 차례예요',
+};
 
 const TABS = [
   { label: '홈', path: '/', icon: <House size={22} aria-hidden /> },
@@ -32,6 +41,8 @@ export default function Home() {
   const [plan] = useState(() => loadPlan());
   // 히어로가 체크 토글에 바로 반응하도록 기록을 여기서도 들고 있는다(쓰기는 ChecklistCard의 토글뿐).
   const [store, setStore] = useState(loadRecords);
+  // 세팅표 복사 기록 — 복사는 결과 화면에서 하고, 돌아오면 홈이 다시 마운트되며 새로 읽는다.
+  const [setupState] = useState(loadSetupState);
 
   const top = <Top title={<Top.TitleParagraph>월급쪼개기</Top.TitleParagraph>} />;
 
@@ -62,6 +73,7 @@ export default function Home() {
   }
 
   const hero = buildHomeHero(plan, store, getToday());
+  const nudge = setupNudge(plan, setupState);
 
   return (
     <ScreenScaffold top={top} bottom={<FloatingTabBar items={TABS} />}>
@@ -77,22 +89,39 @@ export default function Home() {
           </>
         }
         caption={hero.caption}
+        extra={
+          nudge === 'none' ? undefined : (
+            <div data-testid="setup-nudge" style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+              <span style={{ display: 'flex', paddingTop: 2, color: 'var(--adaptiveGrey600)' }}>
+                <Landmark size={16} aria-hidden />
+              </span>
+              <Paragraph.Text typography="t6" color="var(--adaptiveGrey700)">
+                {NUDGE_TEXT[nudge]}
+              </Paragraph.Text>
+            </div>
+          )
+        }
+        action={
+          <Button
+            variant="weak"
+            size="medium"
+            display="block"
+            onClick={() => {
+              haptic('tickWeak');
+              logClick('home_open_setup');
+              navigate('/result');
+            }}
+          >
+            세팅표 보기
+          </Button>
+        }
       />
       <Spacing size={24} />
       <ChecklistCard plan={plan} onStoreChange={setStore} />
       <Spacing size={24} />
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <Button
-          variant="fill"
-          size="large"
-          display="block"
-          onClick={() => {
-            haptic('success');
-            navigate('/result');
-          }}
-        >
-          배분 결과 보기
-        </Button>
+      <EmergencyGoalCard plan={plan} store={store} />
+      <Spacing size={24} />
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
         <Button
           variant="weak"
           size="large"

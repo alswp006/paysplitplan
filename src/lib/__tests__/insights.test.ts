@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { calculateInsights, getBracketScenarios, getTrend } from "@/lib/insights";
+import { calculateInsights, getBracketScenarios, getStreaks, getTrend, movedTotal } from "@/lib/insights";
 import * as dateLib from "@/lib/date";
 import type { FixedCost, MonthRecord, RecordStore, SalaryPlan } from "@/lib/types";
 
@@ -97,5 +97,46 @@ describe("calculateInsights", () => {
     const r = calculateInsights(plan, [], 3);
     expect(r.tierComparison.every((t) => t.actual === 0)).toBe(true);
     expect(r.trend6m).toHaveLength(3);
+  });
+});
+
+describe("getStreaks — 연속 기록(이번 달 진행 중은 끊지 않는다)", () => {
+  it("07·08·09월이 100이면 {current 3, best 3}", () => {
+    expect(getStreaks(storeOf({ "2026-07": 100, "2026-08": 100, "2026-09": 100 }), TODAY)).toEqual({ current: 3, best: 3 });
+  });
+
+  it("04·05·06월 100, 07월 50, 08·09월 100이면 {current 2, best 3}", () => {
+    const store = storeOf({ "2026-04": 100, "2026-05": 100, "2026-06": 100, "2026-07": 50, "2026-08": 100, "2026-09": 100 });
+    expect(getStreaks(store, TODAY)).toEqual({ current: 2, best: 3 });
+  });
+
+  it("이번 달이 진행 중(75)이어도 지난달까지의 연속은 이어지고, 기록이 비면 0", () => {
+    expect(getStreaks(storeOf({ "2026-07": 100, "2026-08": 100, "2026-09": 75 }), TODAY)).toEqual({ current: 2, best: 2 });
+    expect(getStreaks(storeOf({ "2026-05": 100, "2026-07": 100 }), TODAY)).toEqual({ current: 0, best: 1 });
+    expect(getStreaks(storeOf({}), TODAY)).toEqual({ current: 0, best: 0 });
+  });
+});
+
+describe("movedTotal — 저축·비상금 통장에 옮긴 돈", () => {
+  const amounts = { living: 1_200_000, saving: 720_000, emergency: 240_000, leisure: 240_000 };
+  const rec = (month: string, checked: MonthRecord["checked"]): MonthRecord =>
+    ({ month, rate: 0, checked, snapshot: { amounts } }) as MonthRecord;
+
+  it("시드 A로 3개월 동안 저축·비상금을 체크했으면 3 × (720,000 + 240,000) = 2,880,000", () => {
+    const on = { living: true, saving: true, emergency: true, leisure: true };
+    const store: RecordStore = {
+      version: 1,
+      records: { "2026-07": rec("2026-07", on), "2026-08": rec("2026-08", on), "2026-09": rec("2026-09", on) },
+    };
+    expect(movedTotal(store)).toBe(2_880_000);
+  });
+
+  it("생활비·여가는 세지 않고, 체크하지 않은 통장도 세지 않는다", () => {
+    const store: RecordStore = {
+      version: 1,
+      records: { "2026-09": rec("2026-09", { living: true, saving: false, emergency: true, leisure: true }) },
+    };
+    expect(movedTotal(store)).toBe(240_000);
+    expect(movedTotal({ version: 1, records: {} })).toBe(0);
   });
 });

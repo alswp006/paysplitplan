@@ -349,8 +349,10 @@ export function mockTds() {
       SearchField: React.forwardRef(({ onDeleteClick, fixed, takeSpace, className, ...props }: any, ref: any) =>
         h("input", { ref, type: "search", className, ...props }),
       ),
-      ProgressBar: ({ progress, size, color, animate, className }: any) =>
-        h("div", { role: "progressbar", "aria-valuemin": 0, "aria-valuemax": 1, "aria-valuenow": progress, "data-size": size, className }),
+      // ProgressBar — 벤더(2.5.1 런타임)는 role=progressbar에 `aria-valuetext: "{progress×100}%"`를 달고 나머지 div
+      // 속성(aria-label 등)을 그대로 펼친다. aria-valuenow는 쓰지 않는다 — 목도 같게 둔다(color는 data-*로만).
+      ProgressBar: ({ progress, size, color, animate, className, ...props }: any) =>
+        h("div", { role: "progressbar", "aria-valuetext": `${progress * 100}%`, "data-size": size, "data-color": color, className, ...props }),
       FullScreenLoader: ({ label }: any) => h("div", { role: "progressbar", "aria-label": label }, label ?? null),
       CTAButton: ctaButton("cta-button"),
       Tooltip: React.forwardRef(({ children, message, open, defaultOpen, onOpenChange, size, placement, ...props }: any, ref: any) =>
